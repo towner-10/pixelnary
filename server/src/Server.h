@@ -1,79 +1,49 @@
 #pragma once
-#include <cstdint>
+#include <memory>
 #include <vector>
-#include <string>
-#include <iostream>
+#include <deque>
+#include <thread>
 
-class Message
-{
-public:
+#define ASIO_STANDALONE
+#include <asio.hpp>
+#include <asio/ts/buffer.hpp>
+#include <asio/ts/internet.hpp>
 
-    struct Header
-    {
-        Header(uint32_t id, uint32_t payloadSize)
-            : id(id), payloadSize(payloadSize)
-        {}
-        uint32_t id;
-        uint32_t payloadSize;
-    };
-
-public:
-
-    Message(uint32_t id)
-        : m_header(id, 0)
-    {
-
-    }
-
-    size_t Size() const
-    {
-        return sizeof(Header) + m_payload.size();
-    }
-
-    size_t PayloadSize()
-    {
-        return m_payload.size();
-    }
-
-    Header Head()
-    {
-        return m_header;
-    }
-
-    const std::vector<uint8_t>& Payload()
-    {
-        return m_payload;
-    }
-
-public:
-
-    /**
-     * This can get dangerous. It might be a good idea to use some sort of templated functions
-     * or at least some for common types (i.e. PushInt(), PushString(), etc.).
-     * A particular case of interest is that of strings. You must be espically carful if you choose not to
-     * send a null terminator, which is likely for this project.
-     * 
-     * That said, this will work for now.
-    */
-    void Push(const void* data, size_t size);
-    bool Pop(void* buffer, size_t bufferSz, size_t size);
-
-public:
-    std::string AsString() const;
-
-    friend std::ostream& operator<<(std::ostream& os, const Message& msg)
-    {
-        os << msg.AsString();
-        return os;
-    }
-
-private:
-    Header m_header;
-    std::vector<uint8_t> m_payload;
-};
+#include "Message.h"
+#include "Connection.h"
 
 class Server
 {
 public:
-    Server();
+    Server(int port);
+    Server(const Server&) = delete;
+    Server(Server&&) = delete;
+
+    Server& operator=(const Server&) = delete;
+    Server& operator=(Server&&) = delete;
+
+public:
+
+    void Start();
+    void Stop();
+
+    void AsyncWaitForConnection();
+
+    void SendMessage(ClientConnection& client, const Message& message);
+
+    void OnConnect(ClientConnection& client);
+    void OnDisconnect(ClientConnection& client);
+    void OnMessage(ClientConnection& client);
+
+    void HandleMessages();
+private:
+    int m_port;
+    unsigned int m_numConnections = 0;
+    std::vector<std::unique_ptr<ClientConnection>> m_connections;
+
+    std::deque<Message> m_incomingMessageQueue;
+
+    asio::io_context m_context;
+    asio::ip::tcp::acceptor m_connectionAcceptor;
+    std::thread m_serverThread;
 };
