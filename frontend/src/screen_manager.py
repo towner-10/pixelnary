@@ -41,12 +41,6 @@ class ScreenManager:
     def get_text_font(self):
         return self.__text_font
 
-    def get_center_x(self):
-        return self.__center_x
-
-    def get_left_x(self):
-        return self.__left_x
-
 
 # Create a module-level instance of ScreenManager
 screen_manager = ScreenManager()

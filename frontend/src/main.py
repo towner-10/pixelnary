@@ -92,8 +92,11 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
     colors = ["#FF55A8", "#FF452C", "#FFB61A", "#2EBF53",
               "#288DD9", "#2133AB", "black", "white"]
 
+    active_color = "black"
+
     for i, color in enumerate(colors):
-        button = tk.Button(root, bg=color, width=4, height=2)
+        button = tk.Button(root, bg=color, width=4, height=2,
+                           command=lambda: handle_color_change(color))
         button.place(x=678, y=420 + 45 * i, anchor="center")
 
     # Action label
@@ -106,7 +109,7 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
                             font=text_bold, bg="#2133AB", fg="white")
     action_label.place(x=950, y=160, anchor="center")
 
-    # Chat box
+    # Guess chat box
     box = tk.Canvas(root, width=400, height=550, bg="#16208F")
     box.place(x=750, y=200)
 
@@ -114,10 +117,76 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
     msg_entry = tk.Entry(root, font=text, width=34)
     msg_entry.place(x=762, y=720)
 
+    user = "Username123"  # TODO: Replace with real username
+    msg_list = []  # TODO: Replace with real message list
+    is_guessing = True  # TODO: Replace with real game state
+    components = []
+
     # Guess button
     guess_button = tk.Button(root, text="Guess",
-                             font=text_bold, bg="#288DD9", fg="white", width=6, height=1, command=lambda: handle_join(root, sm))
+                             font=text_bold, bg="#288DD9", fg="white", width=6, height=1,
+                             command=lambda: handle_send(user, msg_entry, msg_list, is_guessing, components, word))
     guess_button.place(x=1109, y=729, anchor="center")
+
+    # Color change
+    def handle_color_change(color):
+        active_color = color
+
+        # TODO: Backend integration
+
+    # Display guess in chat box
+    def handle_send(user, msg_entry, msg_list, is_guessing, components, word):
+        # TODO: Backend integration
+
+        # Prevent guess if user already got the right word or guess is empty
+        if is_guessing == False or msg_entry.get() == "":
+            return
+
+        # Destroy current guess message components
+        for component in components:
+            component.destroy()
+
+        # Add new guess message to msg_list
+        msg_list.append({
+            "user": user,
+            "msg": msg_entry.get()
+        })
+
+        # Limit msg_list to 7 most recent messages
+        if len(msg_list) > 7:
+            msg_list.pop(0)
+
+        # Clear message input
+        msg_entry.delete(0, "end")
+
+        # Render new guess message components in order of least-most recent
+        for i in range(len(msg_list)):
+            msg_box = tk.Canvas(root, width=380, height=60, bg="#16208F")
+            msg_box.place(x=760, y=210 + 73 * i)
+            components.append(msg_box)
+
+            if (msg_list[i]["msg"] == word):
+                user_label = tk.Label(
+                    root, text=f"{msg_list[i]["user"]} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                user_label.place(x=770, y=220 + 73 * i)
+                components.append(user_label)
+
+                msg_label = tk.Label(
+                    root, text="Congratulations!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                msg_label.place(x=770, y=240 + 73 * i)
+                components.append(msg_label)
+
+                is_guessing = False
+            else:
+                user_label = tk.Label(
+                    root, text=f"{msg_list[i]["user"]} guessed:", font=text, bg="#16208F", fg="white")
+                user_label.place(x=770, y=220 + 73 * i)
+                components.append(user_label)
+
+                msg_label = tk.Label(
+                    root, text=msg_list[i]["msg"], font=text_bold, bg="#16208F", fg="white")
+                msg_label.place(x=770, y=240 + 73 * i)
+                components.append(msg_label)
 
 
 def main():
