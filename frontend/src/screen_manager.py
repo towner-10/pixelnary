@@ -22,12 +22,8 @@ class ScreenManager:
         self.__root.resizable(False, False)
 
         self.__heading_font = ("Arial", 72)
-        self.__subheading_font = ("Arial", 36, "bold")
+        self.__subheading_font = ("Arial", 32)
         self.__text_font = ("Arial", 12)
-
-        # TODO: Fix
-        # self.__center_x = self.__root.winfo_width() / 2
-        # self.__left_x = 100
 
     def clear_screen(self):
         for widget in self.__root.winfo_children():
@@ -38,7 +34,7 @@ class ScreenManager:
 
     def get_heading_font(self):
         return self.__heading_font
-    
+
     def get_subheading_font(self):
         return self.__subheading_font
 
