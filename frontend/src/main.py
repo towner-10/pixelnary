@@ -2,6 +2,7 @@
 
 import tkinter as tk
 import screen_manager as sm
+from paint import *
 # from pydub import AudioSegment
 # from pydub.playback import play
 import sys
@@ -84,20 +85,8 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
                         font=subheading, bg="#2133AB", fg="white")
     id_label.place(x=295, y=50)
 
-    # Canvas
-    canvas = tk.Canvas(root, width=600, height=600, bg="white")
-    canvas.place(x=50, y=150)
-
-    # Color selectors
-    colors = ["#FF55A8", "#FF452C", "#FFB61A", "#2EBF53",
-              "#288DD9", "#2133AB", "black", "white"]
-
-    active_color = "black"
-
-    for i, color in enumerate(colors):
-        button = tk.Button(root, bg=color, width=4, height=2,
-                           command=lambda: handle_color_change(color))
-        button.place(x=678, y=420 + 45 * i, anchor="center")
+    canvas = Paint(root)
+    canvas.setup()
 
     # Action label
     if (drawer):
@@ -127,12 +116,6 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
                              font=text_bold, bg="#288DD9", fg="white", width=6, height=1,
                              command=lambda: handle_send(user, msg_entry, msg_list, is_guessing, components, word))
     guess_button.place(x=1109, y=729, anchor="center")
-
-    # Color change
-    def handle_color_change(color):
-        active_color = color
-
-        # TODO: Backend integration
 
     # Display guess in chat box
     def handle_send(user, msg_entry, msg_list, is_guessing, components, word):
@@ -172,7 +155,7 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
                 components.append(user_label)
 
                 msg_label = tk.Label(
-                    root, text="Congratulations!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                    root, text="Congratulations!", font=text, bg="#16208F", fg="#2EBF53")
                 msg_label.place(x=770, y=240 + 73 * i)
                 components.append(msg_label)
 
