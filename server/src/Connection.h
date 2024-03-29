@@ -1,6 +1,5 @@
 #pragma once
 #include <deque>
-
 #define ASIO_STANDALONE
 #include <asio.hpp>
 #include <asio/ts/buffer.hpp>
@@ -31,9 +30,19 @@ public:
     }
 
 private:
+    void AsyncSendHeader();
+    void AsyncSendPayload();
+
+    void AsyncReceiveHeader();
+    void AsyncReceivePayload();
+
+
+private:
     asio::ip::tcp::socket m_socket;
     asio::io_context& m_context;
     unsigned int m_id;
+
+    Message m_incomingMsg;
     
     // We might need these to be locking...
     std::deque<Message>& m_incomingMessageQueue;

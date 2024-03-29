@@ -14,8 +14,6 @@ int main()
     logger.AddOutput(LogLevel::Debug | LogLevel::Info, Logger::StandardOutput);
     logger.AddOutput(LogLevel::Warning | LogLevel::Error, Logger::StandardErrorOutput);
 
-    WARN_FL("foo");
-
     Server s(25565);
 
     s.Start();

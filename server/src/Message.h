@@ -25,6 +25,12 @@ public:
 
     }
 
+    Message()
+        : Message(-1)
+    {
+
+    }
+
     size_t Size() const
     {
         return sizeof(Header) + m_payload.size();
@@ -35,9 +41,19 @@ public:
         return m_payload.size();
     }
 
-    Header Head()
+    Header& Head()
     {
         return m_header;
+    }
+
+    void ResizePayload(size_t size)
+    {
+        m_payload.resize(size);
+    }
+
+    void* PayloadData()
+    {
+        return m_payload.data();
     }
 
     const std::vector<uint8_t>& Payload()

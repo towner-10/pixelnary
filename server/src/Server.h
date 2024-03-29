@@ -29,6 +29,7 @@ public:
 
     void AsyncWaitForConnection();
 
+    void Temp();
     void SendMessage(ClientConnection& client, const Message& message);
 
     void OnConnect(ClientConnection& client);

@@ -47,6 +47,9 @@ void Server::AsyncWaitForConnection()
 
         OnConnect(*m_connections.back());
 
+        // BTW... this is not recursion. This function is async which means
+        // it returns virtually instantly. So by doing this, we are not growing
+        // the stack frame but rather
         AsyncWaitForConnection();
     });
 }
@@ -66,10 +69,13 @@ void Server::OnConnect(ClientConnection& client)
 {
     INFO("[Server] " + client.IpAddress().to_string() + " joined the game with id "
             + std::to_string(client.Id()));
+
+    Temp();
 }
 
 void Server::OnDisconnect(ClientConnection& client)
 {
+    INFO("[Server] " + std::to_string(client.Id()) + " left the game");
     // Other disconnect stuff goes here
 
     // Remove it from the vector
@@ -85,11 +91,29 @@ void Server::OnDisconnect(ClientConnection& client)
     }
 }
 
+// TODO: call me
 void Server::OnMessage(ClientConnection& client)
 {
 }
 
 void Server::HandleMessages()
 {
+    while (!m_incomingMessageQueue.empty())
+    {
+        std::cout << m_incomingMessageQueue.front();
+        m_incomingMessageQueue.pop_front();
+    }
+}
 
+
+void Server::Temp()
+{
+    Message msg('A');
+    const char* greeting = "the quick brown fox jumps over the lazy dog";
+    msg.Push(greeting, strlen(greeting));
+
+    std::cout << msg;
+
+    SendMessage(*m_connections.front().get(), msg);
+    LOG_DEBUG("[Server] message sent");
 }
