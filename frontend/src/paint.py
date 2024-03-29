@@ -24,6 +24,9 @@ class Paint(object):
             self.button = Button(self.root, bg=color, width=4, height=2,
                                  command=lambda color=color: self.handle_color_change(color))
             self.button.place(x=678, y=420 + 45 * i, anchor="center")
+        
+        self.button = Button(self.root, text="C", fg="white", bg="#2133AB", width=4, height=2, command=self.clear_canvas)
+        self.button.place(x=678, y=150, anchor="n")
 
         self.active_color = "black"
         self.c.bind('<B1-Motion>', self.paint)
@@ -42,6 +45,9 @@ class Paint(object):
 
         self.old_x = event.x
         self.old_y = event.y
+
+    def clear_canvas(self):
+        self.c.delete("all")
 
     def reset(self, event):
         self.old_x, self.old_y = None, None
