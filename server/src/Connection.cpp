@@ -3,7 +3,7 @@
 #include "Logger.h"
 #include "Connection.h"
 
-ClientConnection::ClientConnection(asio::io_context& context, asio::ip::tcp::socket socket, unsigned int id, std::deque<Message>& msgInQueue)
+ClientConnection::ClientConnection(asio::io_context &context, asio::ip::tcp::socket socket, unsigned int id, std::deque<Message> &msgInQueue)
     : m_context(context), m_socket(std::move(socket)), m_id(id), m_incomingMessageQueue(msgInQueue)
 {
     AsyncReceiveHeader();
@@ -14,10 +14,10 @@ bool ClientConnection::IsConnected() const
     return m_socket.is_open();
 }
 
-void ClientConnection::SendMessage(const Message& message)
+void ClientConnection::SendMessage(const Message &message)
 {
     // Do this on the server thread
-    asio::post(m_context, [this, message](){
+    asio::post(m_context, [this, message]() {
         bool isEmpty = m_outgoingMessageQueue.empty();
         m_outgoingMessageQueue.push_back(message);
         // Only if we aren't already sending messages at the moment
@@ -33,10 +33,8 @@ void ClientConnection::Disconnect()
     if (m_socket.is_open())
     {
         // Give it to the server thread so it can finish what it's working on
-        asio::post(m_context, [this]() {
-            m_socket.close();
-        });
-    }       
+        asio::post(m_context, [this]() { m_socket.close(); });
+    }
 }
 
 void ClientConnection::AsyncSendHeader()
@@ -44,7 +42,7 @@ void ClientConnection::AsyncSendHeader()
     asio::async_write(m_socket, asio::buffer(&m_outgoingMessageQueue.front().Head(), sizeof(Message::Header)), [this](asio::error_code error, size_t) {
         if (error)
         {
-            ERROR("[Connection_" + std::to_string(m_id) + "] an error occured when sending a message header.");
+            ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when sending a message header.");
             m_socket.close();
             return;            
         }
@@ -61,7 +59,7 @@ void ClientConnection::AsyncSendHeader()
         if (!m_outgoingMessageQueue.empty())
         {
             AsyncSendHeader();
-        }        
+        }
     });
 }
 
@@ -70,7 +68,7 @@ void ClientConnection::AsyncSendPayload()
     asio::async_write(m_socket, asio::buffer(m_outgoingMessageQueue.front().PayloadData(), m_outgoingMessageQueue.front().PayloadSize()), [this](asio::error_code error, size_t) {
         if (error)
         {
-            ERROR("[Connection_" + std::to_string(m_id) + "] an error occured when sending a message payload.");
+            ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when sending a message payload.");
             m_socket.close();
             return;            
         }
@@ -82,7 +80,7 @@ void ClientConnection::AsyncSendPayload()
         if (!m_outgoingMessageQueue.empty())
         {
             AsyncSendHeader();
-        }        
+        }
     });
 }
 
@@ -91,7 +89,12 @@ void ClientConnection::AsyncReceiveHeader()
     asio::async_read(m_socket, asio::buffer(&m_incomingMsg.Head(), sizeof(Message::Header)), [this](asio::error_code error, size_t) {
         if (error)
         {
-            ERROR("[Connection_" + std::to_string(m_id) + "] an error occured when reading a message header.");
+            if (error == asio::error::eof) {
+                INFO("[Connection_" + std::to_string(m_id) + "] client disconnected.");
+            } else {
+                ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when reading a message header. With error message: " + error.message());
+            }
+            
             m_socket.close();
             return;
         }
@@ -102,7 +105,7 @@ void ClientConnection::AsyncReceiveHeader()
         {
             m_incomingMsg.ResizePayload(m_incomingMsg.Head().payloadSize);
             LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] Received header");
-            AsyncReceivePayload(); // Nesting lambdas appeares to be harder than I thought
+            AsyncReceivePayload(); // Nesting lambdas appears to be harder than I thought
             return;
         }
 
@@ -115,7 +118,7 @@ void ClientConnection::AsyncReceivePayload()
     asio::async_read(m_socket, asio::buffer(m_incomingMsg.PayloadData(), m_incomingMsg.Payload().size()), [this](asio::error_code error, size_t) {
         if (error)
         {
-            ERROR("[Connection_" + std::to_string(m_id) + "] an error occured when reading a message payload.");
+            ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when reading a message payload.");
             m_socket.close();
             return;
         }
