@@ -8,9 +8,9 @@
 
 int main()
 {
-    std::cout << "hello world\n";
+    std::cout << "Starting server and logger..." << std::endl;
 
-    auto& logger = Logger::Get();
+    auto &logger = Logger::Get();
     logger.AddOutput(LogLevel::Debug | LogLevel::Info, Logger::StandardOutput);
     logger.AddOutput(LogLevel::Warning | LogLevel::Error, Logger::StandardErrorOutput);
 

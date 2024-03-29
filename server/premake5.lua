@@ -10,6 +10,7 @@ project "ScribbleServer"
 
     files { "**.h", "**.hpp", "**.c", "**.cpp" }
     includedirs { "Dependencies/asio-1.28.0/include" }
+    links { "pthread" }
 
     filter { "system:windows", "action:gmake2" }
         links { "ws2_32" }
