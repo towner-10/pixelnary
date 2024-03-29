@@ -1,5 +1,5 @@
 from tkinter import *
-
+from packet_manager import *
 
 class Paint(object):
     def __init__(self, root: Tk):
@@ -14,9 +14,12 @@ class Paint(object):
 
         self.setup()
 
-    def setup(self):
+    def setup(self, server_id=0, client_id=0, is_drawer=True):
         self.old_x = None
         self.old_y = None
+        self.server_id = server_id
+        self.client_id = client_id
+        self.is_drawer = is_drawer
 
         self.c.place(x=50, y=150)
 
@@ -37,14 +40,36 @@ class Paint(object):
         self.active_color = color
 
     def paint(self, event):
-        paint_color = self.active_color
-        if self.old_x and self.old_y:
-            self.c.create_line(self.old_x, self.old_y, event.x, event.y,
-                               width=10, fill=paint_color,
+        if self.is_drawer:
+            paint_color = self.active_color
+
+            if self.old_x and self.old_y:
+                self.c.create_line(self.old_x, self.old_y, event.x, event.y,
+                                width=10, fill=paint_color,
+                                capstyle=ROUND, smooth=TRUE, splinesteps=36)
+    
+                self.send_drawing(self.old_x, self.old_y, event.x, event.y)
+            else:
+                self.send_drawing(event.x, event.y, event.x, event.y)
+                
+            self.old_x = event.x
+            self.old_y = event.y    
+
+    # Function to paint a canvas from the server
+    def update_canvas(self, commands):
+        self.clear_canvas()
+
+        # Draw each line from the server's list of commands
+        for command in commands:
+            self.c.create_line(command["old_x"], command["old_y"], command["new_x"], command["new_y"],
+                               width=10, fill=self.colors[command["color"]],
                                capstyle=ROUND, smooth=TRUE, splinesteps=36)
 
-        self.old_x = event.x
-        self.old_y = event.y
+    # Function to send canvas updates to server
+    def send_drawing(self, o_x, o_y, n_x, n_y):
+        # Create packet
+        packet = get_packet(1, server_id=self.server_id, client_id=self.client_id, old_x=o_x, old_y=o_y, new_x=n_x, new_y=n_y, color=self.colors.index(self.active_color))
+        # TODO: send packet
 
     def clear_canvas(self):
         self.c.delete("all")

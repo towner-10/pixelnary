@@ -3,6 +3,7 @@
 import tkinter as tk
 import screen_manager as sm
 from paint import *
+from packet_manager import *
 # from pydub import AudioSegment
 # from pydub.playback import play
 import sys
@@ -31,7 +32,7 @@ def render_main_menu(root: tk.Tk, sm: sm.ScreenManager):
 
     # Join button
     join_button = tk.Button(root, text="Join room",
-                            font=text_bold, bg="#2EBF53", fg="white", width=10, height=1, command=lambda: handle_join(root, sm))
+                            font=text_bold, bg="#2EBF53", fg="white", width=10, height=1, command=lambda: handle_join(root, sm, input_entry.get()))
     join_button.place(x=675, y=510, anchor="center")
 
     # Create button
@@ -40,22 +41,45 @@ def render_main_menu(root: tk.Tk, sm: sm.ScreenManager):
     create_button.place(x=600, y=575, anchor="center")
 
 
-def handle_join(root: tk.Tk, sm: sm.ScreenManager):
-    # TODO: Backend integration
+def handle_join(root: tk.Tk, sm: sm.ScreenManager, server_id: str):
+
+    # Send request to join room
+    packet = get_packet(7, server_id=int(server_id))
+    # TODO: send packet
+
+    # Placeholder for return packet from server
+    data = get_packet(7, server_id=int(server_id), client_id=111, guess="apple", guess_length=5)
+    res = parse_packet(data)
+
+    # Parse packet contents
+    server_id = res["server_id"]
+    client_id = res["client_id"]
+    word = res["word"]
 
     # Play join sound TODO: Fix
     # join_sound = AudioSegment.from_wav("frontend/sounds/join.wav")
     # play(join_sound)
 
-    # TODO: Replace placeholder room ID and drawer + add word
-    render_room(root, sm, "123456", False)
+    # Render the room with the received parameters
+    render_room(root, sm, server_id, client_id, False, word)
 
 
 def handle_create(root: tk.Tk, sm: sm.ScreenManager):
-    # TODO: Backend integration
+    # Send request to create room 
+    packet = get_packet(6, server_id=0)
+    # TODO: send packet
 
-    # TODO: Replace placeholder room ID and drawer + add word
-    render_room(root, sm, "123456", False)
+    # Placeholder for return packet from server 
+    data = get_packet(6, server_id=0, client_id=111, guess="apple", guess_length=5)
+    res = parse_packet(data)
+
+    # Parse packet contents
+    server_id = res["server_id"]
+    client_id = res["client_id"]
+    word = res["word"]
+
+    # Render the room with the received parameters
+    render_room(root, sm, server_id, client_id, True, word)
 
 
 def handle_leave(root: tk.Tk, sm: sm.ScreenManager):
@@ -64,7 +88,7 @@ def handle_leave(root: tk.Tk, sm: sm.ScreenManager):
     render_main_menu(root, sm)
 
 
-def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, word: str = None):
+def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, client_id:str, drawer: bool, word: str = None):
     sm.clear_screen()
 
     subheading = sm.get_subheading_font()
@@ -86,7 +110,7 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
     id_label.place(x=295, y=50)
 
     canvas = Paint(root)
-    canvas.setup()
+    canvas.setup(room_id, client_id, drawer)
 
     # Action label
     if (drawer):
@@ -106,9 +130,9 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
     msg_entry = tk.Entry(root, font=text, width=34)
     msg_entry.place(x=762, y=720)
 
-    user = "Username123"  # TODO: Replace with real username
+    user = "Client " + str(client_id)
     msg_list = []  # TODO: Replace with real message list
-    is_guessing = True  # TODO: Replace with real game state
+    is_guessing = True # Replace with not drawer (for now still enabled to show chat box)
     components = []
 
     # Guess button
@@ -119,7 +143,9 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, drawer: bool, w
 
     # Display guess in chat box
     def handle_send(user, msg_entry, msg_list, is_guessing, components, word):
-        # TODO: Backend integration
+        # Create guess packet
+        packet = get_packet(2, server_id=room_id, client_id=client_id, guess=msg_entry.get(), guess_length=len(msg_entry.get()))
+        # TODO: send packet
 
         # Prevent guess if user already got the right word or guess is empty
         if is_guessing == False or msg_entry.get() == "":
