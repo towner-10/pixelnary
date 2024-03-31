@@ -26,6 +26,19 @@ def render_main_menu(root: tk.Tk, sm: sm.ScreenManager):
         root, text="SE 3313B Stretch Project", font=text_bold, bg="#2133AB", fg="white")
     subtitle_label.place(x=600, y=325, anchor="center")
 
+    # Server IP
+    ip_label = tk.Label(root, text="Server IP:", font=text, bg="#2133AB", fg="white")
+    ip_label.place(x=600, y=400, anchor="center")
+
+    # Server IP input
+    ip_entry = tk.Entry(root, font=text, width=28)
+
+    # Set default IP
+    ip_entry.insert(0, "127.0.0.1:25565")
+
+    # Render IP entry
+    ip_entry.place(x=600, y=425, anchor="center")
+
     # Room ID join input
     input_entry = tk.Entry(root, font=text, width=16)
     input_entry.place(x=470, y=500)
@@ -176,7 +189,7 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, client_id:str, 
 
             if (msg_list[i]["msg"] == word):
                 user_label = tk.Label(
-                    root, text=f"{msg_list[i]["user"]} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                    root, text=f"{msg_list[i]['user']} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
                 user_label.place(x=770, y=220 + 73 * i)
                 components.append(user_label)
 
@@ -188,7 +201,7 @@ def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, client_id:str, 
                 is_guessing = False
             else:
                 user_label = tk.Label(
-                    root, text=f"{msg_list[i]["user"]} guessed:", font=text, bg="#16208F", fg="white")
+                    root, text=f"{msg_list[i]['user']} guessed:", font=text, bg="#16208F", fg="white")
                 user_label.place(x=770, y=220 + 73 * i)
                 components.append(user_label)
 
