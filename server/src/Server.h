@@ -14,16 +14,15 @@
 
 class Server
 {
-public:
-    Server(int port);
-    Server(const Server&) = delete;
-    Server(Server&&) = delete;
-
-    Server& operator=(const Server&) = delete;
-    Server& operator=(Server&&) = delete;
 
 public:
+    static Server& Get()
+    {
+        static Server instance = Server(25565);
+        return instance;
+    }
 
+public:
     void Start();
     void Stop();
 
@@ -34,9 +33,18 @@ public:
 
     void OnConnect(ClientConnection& client);
     void OnDisconnect(ClientConnection& client);
-    void OnMessage(ClientConnection& client);
 
     void HandleMessages();
+
+private:
+    Server(int port);
+
+    Server(const Server&) = delete;
+    Server(Server&&) = delete;
+
+    Server& operator=(const Server&) = delete;
+    Server& operator=(Server&&) = delete;
+
 private:
     int m_port;
     unsigned int m_numConnections = 0;

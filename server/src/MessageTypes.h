@@ -4,12 +4,30 @@
 
 namespace MessageTypes
 {
+    enum class PacketType: uint8_t
+    {
+        Null = 0, // Only to be used server side
+        ClientRequestId,
+        SetClientId,
+        JoinRoom,
+        DrawCommand,
+        CanvasPacket,
+        GuessPacket
+    };
+
     struct Header
     {
-        uint16_t server_id;
-        uint8_t client_id;
-        uint8_t packet_type;
+        Header(PacketType type, uint32_t size)
+            : room(0xffff), client_id(0xff), packet_type(type), payload_size(size)
+        {
+        }
+
+        uint16_t room; // Only for incoming messages
+        uint8_t client_id; // Only for incoming messages
+        PacketType packet_type;
+        uint32_t payload_size;
     };
+    static_assert(sizeof(Header) == 8, "Header allignment bad");
 
     struct DrawCommand
     {
@@ -19,16 +37,15 @@ namespace MessageTypes
         uint16_t new_y;
         uint16_t color;
     };
+    static_assert(sizeof(DrawCommand) == 10, "Draw command allignment bad");
 
     struct CanvasPacket
     {
-        uint16_t commands_size;
-        DrawCommand *commands;
+        std::vector<DrawCommand> commands;
     };
 
     struct GuessPacket
     {
-        uint16_t guess_length;
-        char *guess;
+        std::string guess;
     };
 };

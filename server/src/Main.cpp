@@ -10,12 +10,11 @@ int main()
 {
     std::cout << "Starting server and logger..." << std::endl;
 
-    auto &logger = Logger::Get();
+    auto& logger = Logger::Get();
     logger.AddOutput(LogLevel::Debug | LogLevel::Info, Logger::StandardOutput);
     logger.AddOutput(LogLevel::Warning | LogLevel::Error, Logger::StandardErrorOutput);
 
-    Server s(25565);
-
+    auto& s = Server::Get();
     s.Start();
 
     while (true)

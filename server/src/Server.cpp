@@ -2,6 +2,7 @@
 #include <utility>
 #include "Logger.h"
 #include "Server.h"
+#include "MessageTypes.h"
 
 Server::Server(int port)
     : m_port(port), m_connectionAcceptor(m_context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
@@ -91,11 +92,6 @@ void Server::OnDisconnect(ClientConnection& client)
     }
 }
 
-// TODO: call me
-void Server::OnMessage(ClientConnection& client)
-{
-}
-
 void Server::HandleMessages()
 {
     while (!m_incomingMessageQueue.empty())
@@ -108,12 +104,12 @@ void Server::HandleMessages()
 
 void Server::Temp()
 {
-    Message msg('A');
-    const char* greeting = "the quick brown fox jumps over the lazy dog";
-    msg.Push(greeting, strlen(greeting));
+//    Message msg('A');
+//    const char* greeting = "the quick brown fox jumps over the lazy dog";
+//    msg.Push(greeting, strlen(greeting));
 
-    std::cout << msg;
+//    std::cout << msg;
 
-    SendMessage(*m_connections.front().get(), msg);
-    LOG_DEBUG("[Server] message sent");
+//    SendMessage(*m_connections.front().get(), msg);
+//    LOG_DEBUG("[Server] message sent");
 }
