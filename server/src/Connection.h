@@ -15,7 +15,6 @@ public:
 public:
     bool IsConnected() const;
     void SendMessage(const Message& message);
-
     void Disconnect();
 
 public:

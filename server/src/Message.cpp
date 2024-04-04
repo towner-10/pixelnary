@@ -25,7 +25,7 @@ void Message::PushGuessPacket(const MessageTypes::GuessPacket& guessPacket)
 
 MessageTypes::CanvasPacket Message::PopCanvasPacket()
 {
-    if (m_header.packet_type != MessageTypes::PacketType::CanvasPacket)
+    if (m_header.packet_type != MessageTypes::PacketType::DrawCommand)
     {
         throw MessageTypeMismatchExcpetion("attempt to pop a message to a type that does not match the type of the message");
     }

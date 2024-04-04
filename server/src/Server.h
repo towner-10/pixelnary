@@ -11,6 +11,7 @@
 
 #include "Message.h"
 #include "Connection.h"
+#include "Room.h"
 
 class Server
 {
@@ -18,7 +19,7 @@ class Server
 public:
     static Server& Get()
     {
-        static Server instance = Server(25565);
+        static Server instance(25565);
         return instance;
     }
 
@@ -28,16 +29,19 @@ public:
 
     void AsyncWaitForConnection();
 
-    void Temp();
     void SendMessage(ClientConnection& client, const Message& message);
 
     void OnConnect(ClientConnection& client);
     void OnDisconnect(ClientConnection& client);
 
+    unsigned int CreateRoom();
+    void CreateRoom(unsigned int room);
+    void MoveFromWaitingRoomToRoom(ClientConnection& client, unsigned int room);
+
     void HandleMessages();
 
 private:
-    Server(int port);
+    Server(unsigned int port);
 
     Server(const Server&) = delete;
     Server(Server&&) = delete;
@@ -46,9 +50,10 @@ private:
     Server& operator=(Server&&) = delete;
 
 private:
-    int m_port;
+    unsigned int m_port;
     unsigned int m_numConnections = 0;
-    std::vector<std::unique_ptr<ClientConnection>> m_connections;
+    Room m_waitingRoom;
+    std::vector<Room> m_rooms;
 
     std::deque<Message> m_incomingMessageQueue;
 

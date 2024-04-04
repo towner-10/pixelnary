@@ -1,18 +1,23 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace MessageTypes
 {
     enum class PacketType: uint8_t
     {
         Null = 0, // Only to be used server side
-        ClientRequestId,
         SetClientId,
+        SetRoomId,
         JoinRoom,
+        CreateRoom,
         DrawCommand,
         CanvasPacket,
-        GuessPacket
+        GuessPacket,
+        NewRound,
+        CorrectGuess,
+        IncorrectGuess,
     };
 
     struct Header

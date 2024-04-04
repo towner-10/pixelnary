@@ -4,20 +4,18 @@
 #include "Server.h"
 #include "MessageTypes.h"
 
-Server::Server(int port)
+Server::Server(unsigned int port)
     : m_port(port), m_connectionAcceptor(m_context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
 {
-
+    m_rooms = std::vector<Room>();
 }
 
 void Server::Start()
 {
     AsyncWaitForConnection();
 
-    m_serverThread = std::thread([this]() {
-        m_context.run();
-    });
-
+    m_serverThread = std::thread([this]()
+                                 { m_context.run(); });
     INFO("[Server] server started on port " + std::to_string(m_port));
 }
 
@@ -32,6 +30,33 @@ void Server::Stop()
     INFO("[Server] server stopped");
 }
 
+unsigned int Server::CreateRoom()
+{
+    m_rooms.emplace_back();
+    return m_rooms.size() - 1;
+}
+
+void Server::MoveFromWaitingRoomToRoom(ClientConnection &client, unsigned int room)
+{
+    if (room >= m_rooms.size())
+    {
+        ERROR_FL("[Server] Room " + std::to_string(room) + " does not exist");
+        return;
+    }
+
+    for (auto it = m_waitingRoom.begin(); it != m_waitingRoom.end();)
+    {
+        if (it->first.get() == &client)
+        {
+            INFO("[Server] Moving connection " + std::to_string(client.Id()) + " to room " + std::to_string(room));
+            m_waitingRoom.MoveClient(*it->first.get(), m_rooms[room]);
+            return;
+        }
+    }
+
+    ERROR_FL("[Server] Connection " + std::to_string(client.Id()) + " was not found in the waiting room");
+}
+
 void Server::AsyncWaitForConnection()
 {
     m_connectionAcceptor.async_accept([this](asio::error_code error, asio::ip::tcp::socket socket) {
@@ -42,11 +67,11 @@ void Server::AsyncWaitForConnection()
             return;
         }
 
-        m_connections.emplace_back(std::make_unique<ClientConnection>(
+        m_waitingRoom.AddClient(std::make_unique<ClientConnection>(
             m_context, std::move(socket), m_numConnections++, m_incomingMessageQueue
         ));
 
-        OnConnect(*m_connections.back());
+        OnConnect(*m_waitingRoom.GetLastClient());
 
         // BTW... this is not recursion. This function is async which means
         // it returns virtually instantly. So by doing this, we are not growing
@@ -55,7 +80,7 @@ void Server::AsyncWaitForConnection()
     });
 }
 
-void Server::SendMessage(ClientConnection& client, const Message& message)
+void Server::SendMessage(ClientConnection &client, const Message &message)
 {
     if (!client.IsConnected())
     {
@@ -66,28 +91,43 @@ void Server::SendMessage(ClientConnection& client, const Message& message)
     client.SendMessage(message);
 }
 
-void Server::OnConnect(ClientConnection& client)
+void Server::OnConnect(ClientConnection &client)
 {
-    INFO("[Server] " + client.IpAddress().to_string() + " joined the game with id "
-            + std::to_string(client.Id()));
+    INFO("[Server] " + client.IpAddress().to_string() + " joined the game with id " + std::to_string(client.Id()));
 
-    Temp();
+    // Send their ID
+    Message message(MessageTypes::PacketType::SetClientId);
+    message.Head().client_id = client.Id();
+    message.Head().room = 0;
+    message.Head().payload_size = 0;
+    SendMessage(client, message);
 }
 
-void Server::OnDisconnect(ClientConnection& client)
+void Server::OnDisconnect(ClientConnection &client)
 {
-    INFO("[Server] " + std::to_string(client.Id()) + " left the game");
-    // Other disconnect stuff goes here
+    INFO("[Server] Connection " + std::to_string(client.Id()) + " left the game");
 
-    // Remove it from the vector
-    // see https://en.cppreference.com/w/cpp/container/vector/erase
-    for (auto it = m_connections.begin(); it != m_connections.end();)
+    for (auto it = m_waitingRoom.begin(); it != m_waitingRoom.end();)
     {
-        if (it->get() == &client)
+        if (it->first.get() == &client)
         {
-            it = m_connections.erase(it);
-            LOG_DEBUG("client erased");
-            break;
+            INFO("[Server] Connection " + std::to_string(client.Id()) + " was in the waiting room");
+            m_waitingRoom.RemoveClient(it);
+            return;
+        }
+    }
+
+    for (int i = 0; i < m_rooms.size(); i++)
+    {
+        Room &room = m_rooms[i];
+        for (auto it = room.begin(); it != room.end();)
+        {
+            if (it->first.get() == &client)
+            {
+                INFO("[Server] Connection " + std::to_string(client.Id()) + " was in room " + std::to_string(i));
+                room.RemoveClient(it);
+                return;
+            }
         }
     }
 }
@@ -96,20 +136,79 @@ void Server::HandleMessages()
 {
     while (!m_incomingMessageQueue.empty())
     {
-        std::cout << m_incomingMessageQueue.front();
+        Message message = m_incomingMessageQueue.front();
+
+        switch (message.Head().packet_type)
+        {
+        case MessageTypes::PacketType::JoinRoom:
+            {
+                ClientConnection *client = m_waitingRoom.GetClient(message.Head().client_id);
+                if (client != nullptr)
+                {
+                    MoveFromWaitingRoomToRoom(*client, message.Head().room);
+                    break;
+                }
+                ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " was not found in the waiting room");
+                break;
+            }
+        case MessageTypes::PacketType::CreateRoom:
+            {
+                INFO("[Server] Received CreateRoom message from client " + std::to_string(message.Head().client_id));
+                unsigned int newRoom = CreateRoom();
+                Message response(MessageTypes::PacketType::SetRoomId);
+                response.Head().client_id = message.Head().client_id;
+                response.Head().room = newRoom;
+                response.Head().payload_size = 0;
+
+                ClientConnection* client = m_waitingRoom.GetClient(message.Head().client_id);
+
+                if (client == nullptr)
+                {
+                    ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " was not found in the waiting room");
+                    break;
+                }
+
+                SendMessage(*m_waitingRoom.GetClient(message.Head().client_id), response);
+                break;
+            }
+        case MessageTypes::PacketType::DrawCommand:
+            {
+                INFO("[Server] Received DrawCommand message from client " + std::to_string(message.Head().client_id));
+                if (message.Head().room >= m_rooms.size())
+                {
+                    ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
+                    break;
+                }
+                m_rooms[message.Head().room].AddDrawCommands(message.PopCanvasPacket().commands);
+                m_rooms[message.Head().room].SendCanvas();
+                break;
+            }
+        case MessageTypes::PacketType::GuessPacket:
+            {
+                INFO("[Server] Received GuessPacket message from client " + std::to_string(message.Head().client_id));
+                
+                if (message.Head().room >= m_rooms.size())
+                {
+                    ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
+                    break;
+                }
+
+                Room &room = m_rooms[message.Head().room];
+
+                if (room.CurrentDrawer() == message.Head().client_id)
+                {
+                    ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " is the drawer and cannot guess");
+                    break;
+                }
+
+                room.CheckWord(message.PopGuessPacket().guess, message.Head().client_id);
+                break;
+            }
+        default:
+            ERROR("[Server] Received unknown message type from client " + std::to_string(message.Head().client_id));
+            break;
+        }
+
         m_incomingMessageQueue.pop_front();
     }
-}
-
-
-void Server::Temp()
-{
-//    Message msg('A');
-//    const char* greeting = "the quick brown fox jumps over the lazy dog";
-//    msg.Push(greeting, strlen(greeting));
-
-//    std::cout << msg;
-
-//    SendMessage(*m_connections.front().get(), msg);
-//    LOG_DEBUG("[Server] message sent");
 }

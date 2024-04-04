@@ -2,8 +2,9 @@
 #define USE_LOGGER_MACROS
 #include "Logger.h"
 #include "Connection.h"
+#include "Server.h"
 
-ClientConnection::ClientConnection(asio::io_context& context, asio::ip::tcp::socket socket, unsigned int id, std::deque<Message> &msgInQueue)
+ClientConnection::ClientConnection(asio::io_context &context, asio::ip::tcp::socket socket, unsigned int id, std::deque<Message> &msgInQueue)
     : m_context(context), m_socket(std::move(socket)), m_id(id), m_incomingMessageQueue(msgInQueue)
 {
     AsyncReceiveHeader();
@@ -14,7 +15,7 @@ bool ClientConnection::IsConnected() const
     return m_socket.is_open();
 }
 
-void ClientConnection::SendMessage(const Message& message)
+void ClientConnection::SendMessage(const Message &message)
 {
     // Do this on the server thread
     asio::post(m_context, [this, message]() {
@@ -32,18 +33,20 @@ void ClientConnection::Disconnect()
 {
     if (m_socket.is_open())
     {
-        // Give it to the server thread so it can finish what it's working on
-        asio::post(m_context, [this]() { m_socket.close(); });
+        m_socket.close();
     }
+
+    Server::Get().OnDisconnect(*this);
 }
 
 void ClientConnection::AsyncSendHeader()
 {
-    asio::async_write(m_socket, asio::buffer(&m_outgoingMessageQueue.front().Head(), sizeof(MessageTypes::Header)), [this](asio::error_code error, size_t) {
+    asio::async_write(m_socket, asio::buffer(&m_outgoingMessageQueue.front().Head(), sizeof(MessageTypes::Header)), [this](asio::error_code error, size_t)
+                      {
         if (error)
         {
             ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when sending a message header.");
-            m_socket.close();
+            Disconnect();
             return;            
         }
 
@@ -59,8 +62,7 @@ void ClientConnection::AsyncSendHeader()
         if (!m_outgoingMessageQueue.empty())
         {
             AsyncSendHeader();
-        }
-    });
+        } });
 }
 
 void ClientConnection::AsyncSendPayload()
@@ -69,13 +71,12 @@ void ClientConnection::AsyncSendPayload()
         if (error)
         {
             ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when sending a message payload.");
-            m_socket.close();
+            Disconnect();
             return;            
         }
 
         m_outgoingMessageQueue.pop_front();
         LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] payload sent");
-
 
         if (!m_outgoingMessageQueue.empty())
         {
@@ -97,22 +98,20 @@ void ClientConnection::AsyncReceiveHeader()
             {
                 ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when reading a message header. With error message: " + error.message());
             }
-            
-            m_socket.close();
+
+            Disconnect();
             return;
         }
 
-        // I don't know if trying to read 0 over the network will break anything
-        // but just in case, only try to read a body if it exists
-        if (m_incomingMsg.Head().payload_size > 0)
-        {
-            m_incomingMsg.ResizePayload(m_incomingMsg.Head().payload_size);
-            LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] Received header");
-            AsyncReceivePayload(); // Nesting lambdas appears to be harder than I thought
-            return;
-        }
+        // Print the header
+        LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] Header: { room: " + std::to_string(m_incomingMsg.Head().room) +
+                  ", client_id: " + std::to_string(m_incomingMsg.Head().client_id) +
+                  ", packet_type: " + std::to_string(static_cast<uint8_t>(m_incomingMsg.Head().packet_type)) +
+                  ", payload_size: " + std::to_string(m_incomingMsg.Head().payload_size) + " }");
 
-        m_incomingMessageQueue.emplace_back(std::move(m_incomingMsg));
+        m_incomingMsg.ResizePayload(m_incomingMsg.Head().payload_size);
+        LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] Received header");
+        AsyncReceivePayload(); // Nesting lambdas appears to be harder than I thought
     });
 }
 
@@ -121,15 +120,22 @@ void ClientConnection::AsyncReceivePayload()
     asio::async_read(m_socket, asio::buffer(m_incomingMsg.PayloadData(), m_incomingMsg.Payload().size()), [this](asio::error_code error, size_t) {
         if (error)
         {
-            ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when reading a message payload.");
-            m_socket.close();
+            if (error == asio::error::eof)
+            {
+                INFO("[Connection_" + std::to_string(m_id) + "] client disconnected.");
+            }
+            else
+            {
+                ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when reading a message payload. With error message: " + error.message());
+            }
+
+            Disconnect();
             return;
         }
 
         m_incomingMessageQueue.emplace_back(std::move(m_incomingMsg));
         m_incomingMsg = Message(); // reset the object
         LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] Received payload");
-
         
         AsyncReceiveHeader();
     });
