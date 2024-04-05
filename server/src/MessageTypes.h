@@ -18,6 +18,7 @@ namespace MessageTypes
         NewRound,
         CorrectGuess,
         IncorrectGuess,
+        SetDrawer
     };
 
     struct Header
@@ -52,5 +53,10 @@ namespace MessageTypes
     struct GuessPacket
     {
         std::string guess;
+    };
+
+    struct DrawerPacket
+    {
+        bool isDrawer;
     };
 };

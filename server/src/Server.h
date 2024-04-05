@@ -35,8 +35,7 @@ public:
     void OnDisconnect(ClientConnection& client);
 
     unsigned int CreateRoom();
-    void CreateRoom(unsigned int room);
-    void MoveFromWaitingRoomToRoom(ClientConnection& client, unsigned int room);
+    bool MoveFromWaitingRoomToRoom(ClientConnection& client, unsigned int room);
 
     void HandleMessages();
 

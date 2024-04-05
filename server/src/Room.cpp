@@ -14,7 +14,9 @@ void Room::AddClient(std::unique_ptr<ClientConnection> client)
     m_clients.push_back(std::make_pair(std::move(client), drawer));
 
     if (drawer)
-        PromoteNextDrawer();
+    {
+        m_currentDrawer = m_clients.back().first->Id();
+    }
 }
 
 void Room::MoveClient(ClientConnection &client, Room &room)
@@ -201,9 +203,20 @@ void Room::PromoteNextDrawer()
 {
     if (m_clients.empty())
     {
+        INFO("[Room] No clients in room");
         return;
     }
 
     m_currentDrawer = m_clients.front().first->Id();
     INFO("[Room] Promoted client " + std::to_string(m_currentDrawer) + " to drawer");
+
+    for (auto &client : m_clients)
+    {
+        Message message(MessageTypes::PacketType::SetDrawer);
+        message.Head().client_id = client.first->Id();
+        message.Head().room = 0;
+        message.Head().payload_size = sizeof(MessageTypes::DrawerPacket);
+        message.PushDrawerPacket({client.first->Id() == m_currentDrawer});
+        client.first->SendMessage(message);
+    }
 }

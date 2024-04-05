@@ -36,12 +36,12 @@ unsigned int Server::CreateRoom()
     return m_rooms.size() - 1;
 }
 
-void Server::MoveFromWaitingRoomToRoom(ClientConnection &client, unsigned int room)
+bool Server::MoveFromWaitingRoomToRoom(ClientConnection &client, unsigned int room)
 {
     if (room >= m_rooms.size())
     {
         ERROR_FL("[Server] Room " + std::to_string(room) + " does not exist");
-        return;
+        return false;
     }
 
     for (auto it = m_waitingRoom.begin(); it != m_waitingRoom.end();)
@@ -50,16 +50,18 @@ void Server::MoveFromWaitingRoomToRoom(ClientConnection &client, unsigned int ro
         {
             INFO("[Server] Moving connection " + std::to_string(client.Id()) + " to room " + std::to_string(room));
             m_waitingRoom.MoveClient(*it->first.get(), m_rooms[room]);
-            return;
+            return true;
         }
     }
 
     ERROR_FL("[Server] Connection " + std::to_string(client.Id()) + " was not found in the waiting room");
+    return false;
 }
 
 void Server::AsyncWaitForConnection()
 {
-    m_connectionAcceptor.async_accept([this](asio::error_code error, asio::ip::tcp::socket socket) {
+    m_connectionAcceptor.async_accept([this](asio::error_code error, asio::ip::tcp::socket socket)
+                                      {
         if (error)
         {
             ERROR_FL("[Server] async_accept failed with error: " + error.message());
@@ -76,8 +78,7 @@ void Server::AsyncWaitForConnection()
         // BTW... this is not recursion. This function is async which means
         // it returns virtually instantly. So by doing this, we are not growing
         // the stack frame but rather
-        AsyncWaitForConnection();
-    });
+        AsyncWaitForConnection(); });
 }
 
 void Server::SendMessage(ClientConnection &client, const Message &message)
@@ -109,6 +110,7 @@ void Server::OnDisconnect(ClientConnection &client)
 
     for (auto it = m_waitingRoom.begin(); it != m_waitingRoom.end();)
     {
+        LOG_DEBUG("[Server] Checking waiting room");
         if (it->first.get() == &client)
         {
             INFO("[Server] Connection " + std::to_string(client.Id()) + " was in the waiting room");
@@ -119,8 +121,10 @@ void Server::OnDisconnect(ClientConnection &client)
 
     for (int i = 0; i < m_rooms.size(); i++)
     {
+        LOG_DEBUG("[Server] Checking room " + std::to_string(i));
         Room &room = m_rooms[i];
-        for (auto it = room.begin(); it != room.end();)
+        auto it = room.begin();
+        while (it != room.end())
         {
             if (it->first.get() == &client)
             {
@@ -130,6 +134,8 @@ void Server::OnDisconnect(ClientConnection &client)
             }
         }
     }
+
+    ERROR("[Server] Connection " + std::to_string(client.Id()) + " was not found in the waiting room or any room");
 }
 
 void Server::HandleMessages()
@@ -141,69 +147,83 @@ void Server::HandleMessages()
         switch (message.Head().packet_type)
         {
         case MessageTypes::PacketType::JoinRoom:
+        {
+            ClientConnection *client = m_waitingRoom.GetClient(message.Head().client_id);
+            if (client != nullptr)
             {
-                ClientConnection *client = m_waitingRoom.GetClient(message.Head().client_id);
-                if (client != nullptr)
+                bool success = MoveFromWaitingRoomToRoom(*client, message.Head().room);
+
+                if (!success)
                 {
-                    MoveFromWaitingRoomToRoom(*client, message.Head().room);
+                    ERROR("[Server] Failed to move client " + std::to_string(message.Head().client_id) + " to room " + std::to_string(message.Head().room));
                     break;
                 }
+
+                Message response(MessageTypes::PacketType::SetDrawer);
+                response.Head().client_id = message.Head().client_id;
+                response.Head().room = message.Head().room;
+                response.Head().payload_size = sizeof(MessageTypes::DrawerPacket);
+                response.PushDrawerPacket({m_rooms[message.Head().room].CurrentDrawer() == message.Head().client_id});
+                SendMessage(*m_rooms[message.Head().room].GetClient(message.Head().client_id), response);
+
+                break;
+            }
+            ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " was not found in the waiting room");
+            break;
+        }
+        case MessageTypes::PacketType::CreateRoom:
+        {
+            INFO("[Server] Received CreateRoom message from client " + std::to_string(message.Head().client_id));
+            unsigned int newRoom = CreateRoom();
+            Message response(MessageTypes::PacketType::SetRoomId);
+            response.Head().client_id = message.Head().client_id;
+            response.Head().room = newRoom;
+            response.Head().payload_size = 0;
+
+            ClientConnection *client = m_waitingRoom.GetClient(message.Head().client_id);
+
+            if (client == nullptr)
+            {
                 ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " was not found in the waiting room");
                 break;
             }
-        case MessageTypes::PacketType::CreateRoom:
-            {
-                INFO("[Server] Received CreateRoom message from client " + std::to_string(message.Head().client_id));
-                unsigned int newRoom = CreateRoom();
-                Message response(MessageTypes::PacketType::SetRoomId);
-                response.Head().client_id = message.Head().client_id;
-                response.Head().room = newRoom;
-                response.Head().payload_size = 0;
 
-                ClientConnection* client = m_waitingRoom.GetClient(message.Head().client_id);
-
-                if (client == nullptr)
-                {
-                    ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " was not found in the waiting room");
-                    break;
-                }
-
-                SendMessage(*m_waitingRoom.GetClient(message.Head().client_id), response);
-                break;
-            }
+            SendMessage(*m_waitingRoom.GetClient(message.Head().client_id), response);
+            break;
+        }
         case MessageTypes::PacketType::DrawCommand:
+        {
+            INFO("[Server] Received DrawCommand message from client " + std::to_string(message.Head().client_id));
+            if (message.Head().room >= m_rooms.size())
             {
-                INFO("[Server] Received DrawCommand message from client " + std::to_string(message.Head().client_id));
-                if (message.Head().room >= m_rooms.size())
-                {
-                    ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
-                    break;
-                }
-                m_rooms[message.Head().room].AddDrawCommands(message.PopCanvasPacket().commands);
-                m_rooms[message.Head().room].SendCanvas();
+                ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
                 break;
             }
+            m_rooms[message.Head().room].AddDrawCommands(message.PopCanvasPacket().commands);
+            m_rooms[message.Head().room].SendCanvas();
+            break;
+        }
         case MessageTypes::PacketType::GuessPacket:
+        {
+            INFO("[Server] Received GuessPacket message from client " + std::to_string(message.Head().client_id));
+
+            if (message.Head().room >= m_rooms.size())
             {
-                INFO("[Server] Received GuessPacket message from client " + std::to_string(message.Head().client_id));
-                
-                if (message.Head().room >= m_rooms.size())
-                {
-                    ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
-                    break;
-                }
-
-                Room &room = m_rooms[message.Head().room];
-
-                if (room.CurrentDrawer() == message.Head().client_id)
-                {
-                    ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " is the drawer and cannot guess");
-                    break;
-                }
-
-                room.CheckWord(message.PopGuessPacket().guess, message.Head().client_id);
+                ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
                 break;
             }
+
+            Room &room = m_rooms[message.Head().room];
+
+            if (room.CurrentDrawer() == message.Head().client_id)
+            {
+                ERROR("[Server] Client " + std::to_string(message.Head().client_id) + " is the drawer and cannot guess");
+                break;
+            }
+
+            room.CheckWord(message.PopGuessPacket().guess, message.Head().client_id);
+            break;
+        }
         default:
             ERROR("[Server] Received unknown message type from client " + std::to_string(message.Head().client_id));
             break;

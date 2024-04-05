@@ -41,8 +41,7 @@ void ClientConnection::Disconnect()
 
 void ClientConnection::AsyncSendHeader()
 {
-    asio::async_write(m_socket, asio::buffer(&m_outgoingMessageQueue.front().Head(), sizeof(MessageTypes::Header)), [this](asio::error_code error, size_t)
-                      {
+    asio::async_write(m_socket, asio::buffer(&m_outgoingMessageQueue.front().Head(), sizeof(MessageTypes::Header)), [this](asio::error_code error, size_t) {
         if (error)
         {
             ERROR("[Connection_" + std::to_string(m_id) + "] an error occurred when sending a message header.");
@@ -62,7 +61,8 @@ void ClientConnection::AsyncSendHeader()
         if (!m_outgoingMessageQueue.empty())
         {
             AsyncSendHeader();
-        } });
+        }
+    });
 }
 
 void ClientConnection::AsyncSendPayload()
