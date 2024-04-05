@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from time import sleep
 from struct import *
 import threading
 import socket
@@ -78,9 +79,11 @@ class ScribbleSocket:
 
     def close(self):
         self.reader_thread.stop()
+        sleep(0.1)
+        
         # Wait for the reader thread to finish
         while self.reader_thread.fetching_data:
-            pass
+            print("Waiting for reader thread to finish...")
         self.socket.close()
 
 
