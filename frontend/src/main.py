@@ -163,8 +163,7 @@ class ScribbleGame:
         msg_entry.place(x=762, y=720)
 
         user = "Client " + str(self.socket.client_id)
-        msg_list = []  # TODO: Replace with real message list
-        # Replace with not drawer (for now still enabled to show chat box)
+        msg_list = [] 
         components = []
 
         # Guess button
@@ -280,6 +279,9 @@ class ScribbleGame:
             msg_entry.delete(0, tk.END)
 
     def handle_join(self, ip: str, room_id: str):
+        if room_id == "":
+            return # Do nothing if room ID is empty
+
         address = ip.split(":")[0]
         port = int(ip.split(":")[1])
 

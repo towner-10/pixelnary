@@ -79,7 +79,8 @@ class Paint(object):
             self.on_draw(packet)
 
     def handle_on_clear(self):
-        self.clear_canvas()
+        if self.is_drawer:
+            self.clear_canvas()
         if self.is_drawer and self.on_clear:
             self.on_clear()
 
