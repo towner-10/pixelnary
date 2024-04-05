@@ -7,7 +7,7 @@ class ScreenManager:
     __instance: None
 
     @staticmethod
-    def get_instance():
+    def get_instance() -> "ScreenManager":
         if ScreenManager.__instance is None:
             ScreenManager().__instance = ScreenManager()
         return ScreenManager.__instance

@@ -2,232 +2,233 @@
 
 import tkinter as tk
 import screen_manager as sm
-from paint import *
 from packet_manager import *
-# from pydub import AudioSegment
-# from pydub.playback import play
+from paint import *
 import sys
 
 
-def render_main_menu(root: tk.Tk, sm: sm.ScreenManager):
-    sm.clear_screen()
+class ScribbleGame:
+    def __init__(self):
+        self.socket: ScribbleSocket = None
+        self.root: tk.Tk = sm.screen_manager.get_root()
+        self.drawer = False
 
-    heading = sm.get_heading_font()
-    text = sm.get_text_font()
-    text_bold = (text[0], text[1], "bold")
+    def on_packet_received(self, packet: Packet):
+        print(f"Received packet: {packet.packet_type}")
 
-    # Game title
-    title_label = tk.Label(root, text="Pixelnary",
-                           font=heading, bg="#2133AB", fg="white")
-    title_label.place(x=600, y=260, anchor="center")
+        if packet.packet_type == PacketType.SET_ROOM_ID:
+            if self.socket is not None and self.socket.client_id is not None:
+                print(f"Received room ID: {packet.room_id}")
+                self.socket.room_id = packet.room_id
+                self.socket.send_packet(Packet(PacketType.JOIN_ROOM, self.socket.client_id, packet.room_id, b""))
+        elif packet.packet_type == PacketType.SET_DRAWER:
+            self.drawer = int.from_bytes(packet.data) == 1
+            print(self.drawer)
+            self.render_room()
+                
 
-    # Subtitle
-    subtitle_label = tk.Label(
-        root, text="SE 3313B Stretch Project", font=text_bold, bg="#2133AB", fg="white")
-    subtitle_label.place(x=600, y=325, anchor="center")
+    def render_main_menu(self):
+        sm.ScreenManager.get_instance().clear_screen()
 
-    # Server IP
-    ip_label = tk.Label(root, text="Server IP:", font=text, bg="#2133AB", fg="white")
-    ip_label.place(x=600, y=400, anchor="center")
+        heading = sm.ScreenManager.get_instance().get_heading_font()
+        text = sm.ScreenManager.get_instance().get_text_font()
+        text_bold = (text[0], text[1], "bold")
 
-    # Server IP input
-    ip_entry = tk.Entry(root, font=text, width=28)
+        # Game title
+        title_label = tk.Label(self.root, text="Pixelnary",
+                            font=heading, bg="#2133AB", fg="white")
+        title_label.place(x=600, y=260, anchor="center")
 
-    # Set default IP
-    ip_entry.insert(0, "127.0.0.1:25565")
+        # Subtitle
+        subtitle_label = tk.Label(
+            self.root, text="SE 3313B Stretch Project", font=text_bold, bg="#2133AB", fg="white")
+        subtitle_label.place(x=600, y=325, anchor="center")
 
-    # Render IP entry
-    ip_entry.place(x=600, y=425, anchor="center")
+        # Server IP
+        ip_label = tk.Label(self.root, text="Server IP:", font=text,
+                            bg="#2133AB", fg="white")
+        ip_label.place(x=600, y=400, anchor="center")
 
-    # Room ID join input
-    input_entry = tk.Entry(root, font=text, width=16)
-    input_entry.place(x=470, y=500)
+        # Server IP input
+        ip_entry = tk.Entry(self.root, font=text, width=28)
 
-    # Join button
-    join_button = tk.Button(root, text="Join room",
-                            font=text_bold, bg="#2EBF53", fg="white", width=10, height=1, command=lambda: handle_join(root, sm, input_entry.get()))
-    join_button.place(x=675, y=510, anchor="center")
+        # Set default IP
+        ip_entry.insert(0, "127.0.0.1:25565")
 
-    # Create button
-    create_button = tk.Button(root, text="Create a new room",
-                              font=text_bold, bg="#288DD9", fg="white", width=25, height=2, command=lambda: handle_create(root, sm))
-    create_button.place(x=600, y=575, anchor="center")
+        # Render IP entry
+        ip_entry.place(x=600, y=425, anchor="center")
 
+        # Room ID join input
+        input_entry = tk.Entry(self.root, font=text, width=16)
+        input_entry.place(x=470, y=500)
 
-def handle_join(root: tk.Tk, sm: sm.ScreenManager, server_id: str):
+        # Join button
+        join_button = tk.Button(self.root, text="Join room",
+                                font=text_bold, bg="#2EBF53", fg="white", width=10, height=1, command=lambda: self.handle_join(ip_entry.get(), input_entry.get()))
+        join_button.place(x=675, y=510, anchor="center")
 
-    # Send request to join room
-    packet = get_packet(7, server_id=int(server_id))
-    # TODO: send packet
+        # Create button
+        create_button = tk.Button(self.root, text="Create a new room",
+                                font=text_bold, bg="#288DD9", fg="white", width=25, height=2, command=lambda: self.handle_create(ip_entry.get()))
+        create_button.place(x=600, y=575, anchor="center")
 
-    # Placeholder for return packet from server
-    data = get_packet(7, server_id=int(server_id), client_id=111, guess="apple", guess_length=5)
-    res = parse_packet(data)
+    def render_room(self):
+        sm.ScreenManager.get_instance().clear_screen()
 
-    # Parse packet contents
-    server_id = res["server_id"]
-    client_id = res["client_id"]
-    word = res["word"]
+        subheading = sm.ScreenManager.get_instance().get_subheading_font()
+        subheading_bold = (subheading[0], subheading[1], "bold")
+        text = sm.ScreenManager.get_instance().get_text_font()
+        text_bold = (text[0], text[1], "bold")
 
-    # Play join sound TODO: Fix
-    # join_sound = AudioSegment.from_wav("frontend/sounds/join.wav")
-    # play(join_sound)
+        # Leave button
+        leave_button = tk.Button(self.root, text="Leave",
+                                font=text_bold, bg="#288DD9", fg="white", width=6, height=1, command=lambda: self.handle_leave())
+        leave_button.place(x=50, y=62)
 
-    # Render the room with the received parameters
-    render_room(root, sm, server_id, client_id, False, word)
+        # Room ID title
+        room_label = tk.Label(self.root, text="Room",
+                            font=subheading_bold, bg="#2133AB", fg="white")
+        room_label.place(x=165, y=50)
+        id_label = tk.Label(self.root, text=self.socket.room_id,
+                            font=subheading, bg="#2133AB", fg="white")
+        id_label.place(x=295, y=50)
 
+        canvas = Paint(self.root)
+        canvas.setup(self.socket.room_id, self.socket.client_id, self.drawer)
 
-def handle_create(root: tk.Tk, sm: sm.ScreenManager):
-    # Send request to create room 
-    packet = get_packet(6, server_id=0)
-    # TODO: send packet
+        # Action label
+        if (self.drawer):
+            action = "Your word is test. Draw it!"
+        else:
+            action = "Guess the word!"
 
-    # Placeholder for return packet from server 
-    data = get_packet(6, server_id=0, client_id=111, guess="apple", guess_length=5)
-    res = parse_packet(data)
+        action_label = tk.Label(self.root, text=action,
+                                font=text_bold, bg="#2133AB", fg="white")
+        action_label.place(x=950, y=160, anchor="center")
 
-    # Parse packet contents
-    server_id = res["server_id"]
-    client_id = res["client_id"]
-    word = res["word"]
+        # Guess chat box
+        box = tk.Canvas(self.root, width=400, height=550, bg="#16208F")
+        box.place(x=750, y=200)
 
-    # Render the room with the received parameters
-    render_room(root, sm, server_id, client_id, True, word)
+        # Message input
+        msg_entry = tk.Entry(self.root, font=text, width=34)
+        msg_entry.place(x=762, y=720)
 
+        user = "Client " + str(self.socket.client_id)
+        msg_list = []  # TODO: Replace with real message list
+        # Replace with not drawer (for now still enabled to show chat box)
+        is_guessing = True
+        components = []
 
-def handle_leave(root: tk.Tk, sm: sm.ScreenManager):
-    # TODO: Backend integration
+        # Guess button
+        guess_button = tk.Button(self.root, text="Guess",
+                                font=text_bold, bg="#288DD9", fg="white", width=6, height=1,
+                                command=lambda: handle_send(user, msg_entry, msg_list, is_guessing, components, "test"))
+        guess_button.place(x=1109, y=729, anchor="center")
 
-    render_main_menu(root, sm)
+        # Display guess in chat box
+        def handle_send(user, msg_entry, msg_list, is_guessing, components, word):
+            # Prevent guess if user already got the right word or guess is empty
+            if is_guessing == False or msg_entry.get() == "":
+                return
 
+            # Destroy current guess message components
+            for component in components:
+                component.destroy()
 
-def render_room(root: tk.Tk, sm: sm.ScreenManager, room_id: str, client_id:str, drawer: bool, word: str = None):
-    sm.clear_screen()
+            # Add new guess message to msg_list
+            msg_list.append({
+                "user": user,
+                "msg": msg_entry.get()
+            })
 
-    subheading = sm.get_subheading_font()
-    subheading_bold = (subheading[0], subheading[1], "bold")
-    text = sm.get_text_font()
-    text_bold = (text[0], text[1], "bold")
+            # Limit msg_list to 7 most recent messages
+            if len(msg_list) > 7:
+                msg_list.pop(0)
 
-    # Leave button
-    leave_button = tk.Button(root, text="Leave",
-                             font=text_bold, bg="#288DD9", fg="white", width=6, height=1, command=lambda: handle_leave(root, sm))
-    leave_button.place(x=50, y=62)
+            # Clear message input
+            msg_entry.delete(0, "end")
 
-    # Room ID title
-    room_label = tk.Label(root, text="Room",
-                          font=subheading_bold, bg="#2133AB", fg="white")
-    room_label.place(x=165, y=50)
-    id_label = tk.Label(root, text=room_id,
-                        font=subheading, bg="#2133AB", fg="white")
-    id_label.place(x=295, y=50)
+            # Render new guess message components in order of least-most recent
+            for i in range(len(msg_list)):
+                msg_box = tk.Canvas(self.root, width=380, height=60, bg="#16208F")
+                msg_box.place(x=760, y=210 + 73 * i)
+                components.append(msg_box)
 
-    canvas = Paint(root)
-    canvas.setup(room_id, client_id, drawer)
+                if (msg_list[i]["msg"] == word):
+                    user_label = tk.Label(
+                        self.root, text=f"{msg_list[i]['user']} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                    user_label.place(x=770, y=220 + 73 * i)
+                    components.append(user_label)
 
-    # Action label
-    if (drawer):
-        action = f"Your word is {word}. Draw it!"
-    else:
-        action = "Guess the word!"
+                    msg_label = tk.Label(
+                        self.root, text="Congratulations!", font=text, bg="#16208F", fg="#2EBF53")
+                    msg_label.place(x=770, y=240 + 73 * i)
+                    components.append(msg_label)
 
-    action_label = tk.Label(root, text=action,
-                            font=text_bold, bg="#2133AB", fg="white")
-    action_label.place(x=950, y=160, anchor="center")
+                    is_guessing = False
+                else:
+                    user_label = tk.Label(
+                        self.root, text=f"{msg_list[i]['user']} guessed:", font=text, bg="#16208F", fg="white")
+                    user_label.place(x=770, y=220 + 73 * i)
+                    components.append(user_label)
 
-    # Guess chat box
-    box = tk.Canvas(root, width=400, height=550, bg="#16208F")
-    box.place(x=750, y=200)
+                    msg_label = tk.Label(
+                        self.root, text=msg_list[i]["msg"], font=text_bold, bg="#16208F", fg="white")
+                    msg_label.place(x=770, y=240 + 73 * i)
+                    components.append(msg_label)
 
-    # Message input
-    msg_entry = tk.Entry(root, font=text, width=34)
-    msg_entry.place(x=762, y=720)
+    def handle_join(self, ip: str, room_id: str):
+        address = ip.split(":")[0]
+        port = int(ip.split(":")[1])
 
-    user = "Client " + str(client_id)
-    msg_list = []  # TODO: Replace with real message list
-    is_guessing = True # Replace with not drawer (for now still enabled to show chat box)
-    components = []
+        if self.socket is None:
+            self.socket = ScribbleSocket(address, port, self.on_packet_received)
 
-    # Guess button
-    guess_button = tk.Button(root, text="Guess",
-                             font=text_bold, bg="#288DD9", fg="white", width=6, height=1,
-                             command=lambda: handle_send(user, msg_entry, msg_list, is_guessing, components, word))
-    guess_button.place(x=1109, y=729, anchor="center")
+        # Send join packet
+        self.socket.send_packet(Packet(PacketType.JOIN_ROOM,
+                        self.socket.client_id, int(room_id), b""))
+        
+        self.socket.room_id = int(room_id)
+        
+    def handle_create(self, ip: str):
+        address = ip.split(":")[0]
+        port = int(ip.split(":")[1])
 
-    # Display guess in chat box
-    def handle_send(user, msg_entry, msg_list, is_guessing, components, word):
-        # Create guess packet
-        packet = get_packet(2, server_id=room_id, client_id=client_id, guess=msg_entry.get(), guess_length=len(msg_entry.get()))
-        # TODO: send packet
+        if self.socket is None:
+            self.socket = ScribbleSocket(address, port, self.on_packet_received)
 
-        # Prevent guess if user already got the right word or guess is empty
-        if is_guessing == False or msg_entry.get() == "":
-            return
+        # Send create packet
+        self.socket.send_packet(Packet(PacketType.CREATE_ROOM,
+                        self.socket.client_id, 0, b""))
 
-        # Destroy current guess message components
-        for component in components:
-            component.destroy()
+    def handle_leave(self):
+        self.close_socket()
+        self.render_main_menu()
 
-        # Add new guess message to msg_list
-        msg_list.append({
-            "user": user,
-            "msg": msg_entry.get()
-        })
+    def close_socket(self):
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
 
-        # Limit msg_list to 7 most recent messages
-        if len(msg_list) > 7:
-            msg_list.pop(0)
+    def start(self):
+        self.root.update()
 
-        # Clear message input
-        msg_entry.delete(0, "end")
+        def on_close():
+            self.root.destroy()
+            self.close_socket()
+            sys.exit()
 
-        # Render new guess message components in order of least-most recent
-        for i in range(len(msg_list)):
-            msg_box = tk.Canvas(root, width=380, height=60, bg="#16208F")
-            msg_box.place(x=760, y=210 + 73 * i)
-            components.append(msg_box)
+        self.root.protocol("WM_DELETE_WINDOW", on_close)
 
-            if (msg_list[i]["msg"] == word):
-                user_label = tk.Label(
-                    root, text=f"{msg_list[i]['user']} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
-                user_label.place(x=770, y=220 + 73 * i)
-                components.append(user_label)
+        self.render_main_menu()
 
-                msg_label = tk.Label(
-                    root, text="Congratulations!", font=text, bg="#16208F", fg="#2EBF53")
-                msg_label.place(x=770, y=240 + 73 * i)
-                components.append(msg_label)
-
-                is_guessing = False
-            else:
-                user_label = tk.Label(
-                    root, text=f"{msg_list[i]['user']} guessed:", font=text, bg="#16208F", fg="white")
-                user_label.place(x=770, y=220 + 73 * i)
-                components.append(user_label)
-
-                msg_label = tk.Label(
-                    root, text=msg_list[i]["msg"], font=text_bold, bg="#16208F", fg="white")
-                msg_label.place(x=770, y=240 + 73 * i)
-                components.append(msg_label)
-
+        # Start the main loop
+        self.root.mainloop()
 
 def main():
-    # Set the screen manager and root
-    screen_manager: sm.ScreenManager = sm.screen_manager.get_instance()
-    root = screen_manager.get_root()
-    root.update()
-
-    def on_close():
-        root.destroy()
-        sys.exit()
-
-    root.protocol("WM_DELETE_WINDOW", on_close)
-
-    render_main_menu(root, screen_manager)
-
-    # Start the main loop
-    root.mainloop()
-
+    game = ScribbleGame()
+    game.start()
 
 if __name__ == "__main__":
     main()

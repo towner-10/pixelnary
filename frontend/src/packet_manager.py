@@ -1,144 +1,121 @@
-# Function to generate a packet 
-def get_packet(type, server_id=0, client_id=0, old_x=0, old_y=0, new_x=0, new_y=0, color=0, guess='', guess_length=0):
-    packet = [0] * 4
+from collections.abc import Callable
+from struct import *
+import threading
+import socket
 
-    # Append universal headers 
-    store_to_packet(packet, server_id, 0, 16)
-    store_to_packet(packet, client_id, 16, 8)
-    store_to_packet(packet, type, 24, 8)
 
-    # Create draw update packet (TODO: type 0 can be removed later)
-    if type == 1:
-        for _ in range(12):
-            packet.append(0)
+class PacketType:
+    NULL = 0
+    SET_CLIENT_ID = 1
+    SET_ROOM_ID = 2
+    JOIN_ROOM = 3
+    CREATE_ROOM = 4
+    DRAW_COMMAND = 5
+    CANVAS_PACKET = 6
+    GUESS_PACKET = 7
+    NEW_ROUND = 8
+    CORRECT_GUESS = 9
+    INCORRECT_GUESS = 10
+    SET_DRAWER = 11
 
-        store_to_packet(packet, 1, 32, 16) # length = 1 as only 1 command
-        store_to_packet(packet, old_x, 48, 16)
-        store_to_packet(packet, old_y, 64, 16)
-        store_to_packet(packet, new_x, 80, 16)
-        store_to_packet(packet, new_y, 96, 16)
-        store_to_packet(packet, color, 112, 16)
-        
-    # Create guess packet (TODO: type 6/7 can be removed later)
-    elif type == 2 or type == 6 or type == 7:
-        for _ in range(4 + guess_length):
-            packet.append(0)
 
-        store_to_packet(packet, guess_length, 32, 16)
+class Packet:
+    def __init__(self, packet_type, client_id, room_id, data):
+        self.packet_type = packet_type
+        self.client_id = client_id
+        self.room_id = room_id
+        self.data_length = len(data)
+        self.data = data
 
-        string_bytes = string_to_bytes(guess)
-        for i in range(len(string_bytes)):
-            store_to_packet(packet, string_bytes[i], 48 + i*8, 8)
+    def create_packet(self):
+        # 16 bits for room id, 8 bits for client id, 8 bits for packet type, 32 bits for packet length
+        packet = pack("HBBI", self.room_id, self.client_id,
+                      self.packet_type, len(self.data))
 
-    return bytes(packet)
+        # Append the data to the packet
+        packet += self.data
 
-# Function to parse a packet
-def parse_packet(res):
+        return packet
 
-    # Parse universal packet headers
-    server_id = parse_bit_packet(res, 0, 16)
-    client_id = parse_bit_packet(res, 16, 8)
-    type = parse_bit_packet(res, 24, 8)
+    def parse_packet(packet):
+        new_packet = Packet(0, 0, 0, b"")
 
-    print(f"Received packet with server {server_id}, client {client_id} and type {type}")
-    commands = []
-    word_len = 0
-    word = ""
+        new_packet.room_id = unpack("H", packet[0:2])[0]
+        new_packet.client_id = unpack("B", packet[2:3])[0]
+        new_packet.packet_type = unpack("B", packet[3:4])[0]
+        new_packet.data_length = unpack("I", packet[4:8])[0]
 
-    # Parse canvas update packet
-    if type == 0:
-        command_len = parse_bit_packet(res, 32, 16) 
-        for i in range(command_len):
-            o_x = parse_bit_packet(res, 48 + i * 80, 16)
-            o_y = parse_bit_packet(res, 64 + i * 80, 16)
-            n_x = parse_bit_packet(res, 80 + i * 80, 16)
-            n_y = parse_bit_packet(res, 96 + i * 80, 16)
-            c = parse_bit_packet(res, 112 + i * 80, 16)
-        
-            commands.append({"old_x": o_x, "old_y": o_y, "new_x": n_x, "new_y": n_y, "color": c})
- 
-    # Get the word if the packet contains it 
-    elif type == 4 or type == 5 or type == 6 or type == 7:
-        # SET TYPE = DRAWER
+        return new_packet
 
-        word_len = parse_bit_packet(res, 32, 16)
-        word = bytes_to_string([parse_bit_packet(res, 48 + i*8, 8) for i in range(word_len)])
+    def __str__(self):
+        return f"Packet: {self.packet_type}, {self.client_id}, {self.room_id}, {self.data_length}, {self.data}"
 
-    data = {"server_id": server_id, 
-            "client_id": client_id, 
-            "type": type, 
-            "commands": commands, 
-            "word_len": word_len, 
-            "word": word}
 
-    return data
+class ScribbleSocket:
+    def __init__(self, address: str, port: int, on_packet_received: Callable[[Packet], None] = None):
+        self.client_id = None
+        self.room_id = None
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.connect((address, port))
+        self.socket.settimeout(5)
 
-# Function to convert a string to bytes to be stored in a packet
-def string_to_bytes(s):
-    result = []
+        packet = self.socket.recv(64)
 
-    for ch in s:
-        ch = ord(ch)  # get char code
-        st = []  # set up "stack"
+        print(Packet.parse_packet(packet))
 
-        while ch:
-            st.append(ch & 0xff)  # push byte to stack
-            ch = ch >> 8  # shift value down by 1 byte
+        while Packet.parse_packet(packet).packet_type != PacketType.SET_CLIENT_ID:
+            packet = self.socket.recv(64)
 
-        # add stack contents to result
-        # done because chars have "wrong" endianness
-        result.extend(st[::-1])  # reverse the stack and add to result
+        self.client_id = Packet.parse_packet(packet).client_id
+        print(f"Received client ID: {self.client_id}")
 
-    # return a list of bytes
-    return result
+        # Start the reader thread
+        self.reader_thread = ReaderThread(self, on_packet_received)
+        self.reader_thread.start()
 
-# Function to store a value in a packet with a specific offset and length
-def store_to_packet(packet, value, offset, length):
-    # let us get the actual byte position of the offset
-    last_bit_position = offset + length - 1
-    number = bin(value)[2:]  # Convert to binary and remove '0b' prefix
-    j = len(number) - 1
+    def send_packet(self, packet: Packet):
+        self.socket.send(packet.create_packet())
 
-    for i in range(len(number)):
-        byte_position = last_bit_position // 8
-        bit_position = 7 - (last_bit_position % 8)
+    def close(self):
+        self.reader_thread.stop()
+        # Wait for the reader thread to finish
+        while self.reader_thread.fetching_data:
+            pass
+        self.socket.close()
 
-        if number[j] == "0":
-            packet[byte_position] &= ~(1 << bit_position)
-        else:
-            packet[byte_position] |= 1 << bit_position
 
-        j -= 1
-        last_bit_position -= 1
+class ReaderThread(threading.Thread):
+    def __init__(self, scribble_socket: ScribbleSocket, on_packet_received: Callable[[Packet], None] = None):
+        threading.Thread.__init__(self)
+        self.scribble_socket = scribble_socket
+        self.on_packet_received = on_packet_received
+        self.running = True
+        self.fetching_data = False
 
-# Function to get a value from a packet with a specific offset and length
-def parse_bit_packet(packet, offset, length):
-    number = 0
-    for i in range(length):
-        # let us get the actual byte position of the offset
-        byte_position = (offset + i) // 8
-        bit_position = 7 - ((offset + i) % 8)
-        bit = (packet[byte_position] >> bit_position) % 2
-        number = (number << 1) | bit
-    return number
+    def run(self):
+        self.scribble_socket.socket.settimeout(None)
+        self.scribble_socket.socket.setblocking(False)
 
-# Function to convert a list of bytes to a string
-def bytes_to_string(array):
-    result = ""
-    for i in range(len(array)):
-        result += chr(array[i])
-    return result
+        while self.running:
+            try:
+                packet = self.scribble_socket.socket.recv(64)
 
-# Function to print out a packet's contents
-def print_packet_bit(packet):
-    bit_string = ""
+                if packet:
+                    temp = Packet.parse_packet(packet)
 
-    for i in range(len(packet)):
-        # To add leading zeros
-        b = "00000000" + bin(packet[i])[2:]
-        # To print 4 bytes per line
-        if i > 0 and i % 4 == 0:
-            bit_string += "\n"
-        bit_string += " " + b[-8:]
+                    if temp.packet_type == PacketType.SET_DRAWER or temp.packet_type == PacketType.CANVAS_PACKET:
+                        self.scribble_socket.socket.setblocking(self.running)
+                        self.fetching_data = True
+                        packet = self.scribble_socket.socket.recv(
+                            temp.data_length)
+                        self.fetching_data = False
+                        self.scribble_socket.socket.setblocking(False)
+                        temp.data += packet
 
-    print(bit_string)
+                    if self.on_packet_received:
+                        self.on_packet_received(temp)
+            except BlockingIOError:
+                pass
+
+    def stop(self):
+        self.running = False
