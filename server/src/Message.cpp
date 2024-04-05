@@ -23,6 +23,16 @@ void Message::PushGuessPacket(const MessageTypes::GuessPacket& guessPacket)
     Push(guess, strlen(guess));
 }
 
+void Message::PushDrawerPacket(const MessageTypes::DrawerPacket& drawerPacket)
+{
+    if (m_header.packet_type != MessageTypes::PacketType::SetDrawer)
+    {
+        throw MessageTypeMismatchExcpetion("attempt to push a message type that does not match the type of the message");
+    }
+
+    Push(&drawerPacket.isDrawer, sizeof(bool));
+}
+
 MessageTypes::CanvasPacket Message::PopCanvasPacket()
 {
     if (m_header.packet_type != MessageTypes::PacketType::DrawCommand)
