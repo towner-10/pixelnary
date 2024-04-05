@@ -13,6 +13,7 @@ class ScribbleGame:
         self.socket: ScribbleSocket = None
         self.root: tk.Tk = sm.screen_manager.get_root()
         self.drawer = False
+        self.word = None
         self.is_guessing = True
         self.on_guess_packet: Callable[[Packet], None] = None
         self.on_draw_packet: Callable[[CanvasPacket], None] = None
@@ -26,9 +27,14 @@ class ScribbleGame:
                 self.socket.send_packet(
                     Packet(PacketType.JOIN_ROOM, self.socket.client_id, packet.room_id, b""))
         elif packet.packet_type == PacketType.SET_DRAWER:
-            self.drawer = int.from_bytes(packet.data) == 1
+            # first byte of data is a boolean indicating if the client is the drawer
+            # the following bytes is the word if the first byte is 1
+            self.drawer = packet.data[0] == 1
             if not self.drawer:
                 self.is_guessing = True
+                self.word = None
+            else:
+                self.word = packet.data[1:].decode()
             print("Is drawer: " + str(self.drawer))
             self.render_room()
         elif packet.packet_type == PacketType.GUESS_PACKET or packet.packet_type == PacketType.CORRECT_GUESS:
@@ -140,7 +146,7 @@ class ScribbleGame:
 
         # Action label
         if (self.drawer):
-            action = "Your word is test. Draw it!"
+            action = f"Your word is {self.word}. Draw it!"
         else:
             action = "Guess the word!"
 

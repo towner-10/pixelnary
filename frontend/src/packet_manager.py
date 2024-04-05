@@ -14,9 +14,8 @@ class PacketType:
     DRAW_COMMAND = 5
     CANVAS_PACKET = 6
     GUESS_PACKET = 7
-    NEW_ROUND = 8
-    CORRECT_GUESS = 9
-    SET_DRAWER = 10
+    CORRECT_GUESS = 8
+    SET_DRAWER = 9
 
 
 class CanvasPacket:
