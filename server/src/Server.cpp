@@ -168,6 +168,7 @@ void Server::HandleMessages()
                 response.Head().payload_size = sizeof(MessageTypes::DrawerPacket);
                 response.PushDrawerPacket({m_rooms[message.Head().room].CurrentDrawer() == message.Head().client_id});
                 SendMessage(*m_rooms[message.Head().room].GetClient(message.Head().client_id), response);
+                m_rooms[message.Head().room].SendCanvas(message.Head().client_id);
 
                 break;
             }
@@ -202,8 +203,17 @@ void Server::HandleMessages()
                 ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
                 break;
             }
-            m_rooms[message.Head().room].AddDrawCommands(message.PopCanvasPacket().commands);
-            m_rooms[message.Head().room].SendCanvas();
+            std::vector<MessageTypes::DrawCommand> commands = message.PopCanvasPacket().commands;
+
+            if (commands.size() != 1)
+            {
+                ERROR("[Server] Received DrawCommand message with " + std::to_string(commands.size()) + " commands");
+                break;
+            }
+
+            m_rooms[message.Head().room].AddDrawCommands(commands);
+            message.PushDrawCommand(commands[0]);
+            m_rooms[message.Head().room].BroadcastExcept(message, message.Head().client_id);
             break;
         }
         case MessageTypes::PacketType::GuessPacket:
@@ -227,8 +237,20 @@ void Server::HandleMessages()
             room.CheckWord(message.PopGuessPacket().guess, message.Head().client_id);
             break;
         }
+        case MessageTypes::PacketType::CanvasPacket:
+        {
+            INFO("[Server] Received CanvasCommand message from client " + std::to_string(message.Head().client_id));
+            if (message.Head().room >= m_rooms.size())
+            {
+                ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
+                break;
+            }
+            m_rooms[message.Head().room].ClearDrawCommands();
+            m_rooms[message.Head().room].SendCanvas();
+            break;
+        }
         default:
-            ERROR("[Server] Received unknown message type from client " + std::to_string(message.Head().client_id));
+            ERROR("[Server] Received unknown message of type " + std::to_string(static_cast<uint8_t>(message.Head().packet_type)) + " from client " + std::to_string(message.Head().client_id));
             break;
         }
 

@@ -53,6 +53,7 @@ public:
     void PushCanvasPacket(const MessageTypes::CanvasPacket& canvasPacket);
     void PushGuessPacket(const MessageTypes::GuessPacket& guessPacket);
     void PushDrawerPacket(const MessageTypes::DrawerPacket& drawerPacket);
+    void PushDrawCommand(const MessageTypes::DrawCommand& drawCommand);
 
     MessageTypes::CanvasPacket PopCanvasPacket();
     MessageTypes::GuessPacket PopGuessPacket();

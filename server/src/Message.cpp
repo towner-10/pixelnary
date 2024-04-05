@@ -30,7 +30,17 @@ void Message::PushDrawerPacket(const MessageTypes::DrawerPacket& drawerPacket)
         throw MessageTypeMismatchExcpetion("attempt to push a message type that does not match the type of the message");
     }
 
-    Push(&drawerPacket.isDrawer, sizeof(bool));
+    Push(&drawerPacket.isDrawer, sizeof(uint8_t));
+}
+
+void Message::PushDrawCommand(const MessageTypes::DrawCommand& drawCommand)
+{
+    if (m_header.packet_type != MessageTypes::PacketType::DrawCommand)
+    {
+        throw MessageTypeMismatchExcpetion("attempt to push a message type that does not match the type of the message");
+    }
+
+    Push(&drawCommand, sizeof(MessageTypes::DrawCommand));
 }
 
 MessageTypes::CanvasPacket Message::PopCanvasPacket()
@@ -42,7 +52,7 @@ MessageTypes::CanvasPacket Message::PopCanvasPacket()
 
     MessageTypes::CanvasPacket ret;
 
-    const size_t numElements = m_header.payload_size / sizeof(MessageTypes::PacketType::CanvasPacket);
+    const size_t numElements = m_header.payload_size / sizeof(MessageTypes::DrawCommand);
     ret.commands.resize(numElements);
 
     Pop(ret.commands.data(), m_header.payload_size, m_header.payload_size);

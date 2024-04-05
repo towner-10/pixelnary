@@ -102,17 +102,29 @@ void Room::ClearDrawCommands()
 void Room::SendCanvas()
 {
     Message message(MessageTypes::PacketType::CanvasPacket);
+    message.Head().client_id = 0;
+    message.Head().room = 0;
 
     MessageTypes::CanvasPacket canvasPacket;
-    canvasPacket.commands.reserve(m_drawCommands.size());
-
-    for (auto &drawCommand : m_drawCommands)
-    {
-        canvasPacket.commands.push_back(drawCommand);
-    }
+    canvasPacket.commands = m_drawCommands;
 
     message.PushCanvasPacket(canvasPacket);
-    BroadcastExcept(message, m_currentDrawer);
+
+    Broadcast(message);
+}
+
+void Room::SendCanvas(unsigned int id)
+{
+    Message message(MessageTypes::PacketType::CanvasPacket);
+    message.Head().client_id = 0;
+    message.Head().room = 0;
+
+    MessageTypes::CanvasPacket canvasPacket;
+    canvasPacket.commands = m_drawCommands;
+
+    message.PushCanvasPacket(canvasPacket);
+
+    GetClient(id)->SendMessage(message);
 }
 
 ClientConnection *Room::GetClient(unsigned int id)

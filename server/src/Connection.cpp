@@ -102,6 +102,12 @@ void ClientConnection::AsyncReceiveHeader()
             Disconnect();
             return;
         }
+        else if (m_incomingMsg.Head().packet_type == MessageTypes::PacketType::Null)
+        {
+            ERROR("[Connection_" + std::to_string(m_id) + "] received a NULL message.");
+            Disconnect();
+            return;
+        }
 
         // Print the header
         LOG_DEBUG("[Connection_" + std::to_string(m_id) + "] Header: { room: " + std::to_string(m_incomingMsg.Head().room) +

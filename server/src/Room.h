@@ -22,6 +22,7 @@ public:
     void AddDrawCommand(MessageTypes::DrawCommand drawCommand);
     void AddDrawCommands(std::vector<MessageTypes::DrawCommand> drawCommands);
     void SendCanvas();
+    void SendCanvas(unsigned int id);
     bool CheckWord(const std::string &word, unsigned int id);
     void ClearDrawCommands();
     void NewRound();

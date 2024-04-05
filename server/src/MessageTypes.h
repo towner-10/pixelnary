@@ -56,6 +56,6 @@ namespace MessageTypes
 
     struct DrawerPacket
     {
-        bool isDrawer;
+        uint8_t isDrawer;
     };
 };
