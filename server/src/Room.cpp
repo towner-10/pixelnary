@@ -1,9 +1,15 @@
 #define USE_LOGGER_MACROS
+
+#include <algorithm>
+#include <cstdlib>
+#include <ctime>
 #include "Logger.h"
 #include "Room.h"
 
 Room::Room()
 {
+    // Seed random number generator
+    srand(time(nullptr));
     NewRound();
 }
 
@@ -55,11 +61,15 @@ void Room::RemoveClient(std::vector<std::pair<std::unique_ptr<ClientConnection>,
     if (it->first->Id() == m_currentDrawer)
     {
         m_clients.erase(it);
-        PromoteNextDrawer();
-        return;
+        if (!m_clients.empty())
+            PromoteDrawer(m_clients.front().first->Id());
+        else
+            PromoteDrawer(0);
     }
-
-    m_clients.erase(it);
+    else
+    {
+        m_clients.erase(it);
+    }
 }
 
 void Room::Broadcast(const Message &message)
@@ -94,7 +104,7 @@ void Room::AddDrawCommands(std::vector<MessageTypes::DrawCommand> drawCommands)
     }
 }
 
-void Room::ClearDrawCommands()
+void Room::ClearCanvas()
 {
     m_drawCommands.clear();
 }
@@ -152,7 +162,10 @@ ClientConnection *Room::GetLastClient()
 
 bool Room::CheckWord(const std::string &word, unsigned int id)
 {
-    bool correct = m_word == word;
+    std::string copy = word;
+    std::transform(copy.begin(), copy.end(), copy.begin(), ::tolower);
+
+    bool correct = m_word == copy;
 
     for (auto &client : m_clients)
     {
@@ -209,18 +222,36 @@ void Room::NewRound()
 {
     INFO("[Room] Starting new round");
 
-    m_word = "test";
-    ClearDrawCommands();
+    GenerateWord();
+    ClearCanvas();
 
     for (auto &client : m_clients)
     {
         client.second = false;
     }
 
-    Broadcast(Message(MessageTypes::PacketType::NewRound));
+    if (!m_clients.empty())
+    {
+        // Get the next drawer to the right of the current drawer
+        auto it = m_clients.begin();
+        while (it->first->Id() != m_currentDrawer)
+        {
+            it++;
+        }
+        it++;
+        if (it == m_clients.end())
+        {
+            it = m_clients.begin();
+        }
+
+        PromoteDrawer(it->first->Id());
+        return;
+    }
+
+    INFO("[Room] No clients in room to promote drawer to");
 }
 
-void Room::PromoteNextDrawer()
+void Room::PromoteDrawer(unsigned int id)
 {
     if (m_clients.empty())
     {
@@ -228,7 +259,15 @@ void Room::PromoteNextDrawer()
         return;
     }
 
-    m_currentDrawer = m_clients.front().first->Id();
+    ClientConnection *client = GetClient(id);
+
+    if (client == nullptr)
+    {
+        INFO("[Room] Client not found");
+        return;
+    }
+
+    m_currentDrawer = client->Id();
     INFO("[Room] Promoted client " + std::to_string(m_currentDrawer) + " to drawer");
 
     for (auto &client : m_clients)
@@ -236,8 +275,20 @@ void Room::PromoteNextDrawer()
         Message message(MessageTypes::PacketType::SetDrawer);
         message.Head().client_id = client.first->Id();
         message.Head().room = 0;
-        message.Head().payload_size = sizeof(MessageTypes::DrawerPacket);
-        message.PushDrawerPacket({client.first->Id() == m_currentDrawer});
+
+        bool isDrawer = client.first->Id() == m_currentDrawer;
+        std::string word = "";
+
+        if (isDrawer)
+            word = Word();
+
+        message.PushDrawerPacket({isDrawer, word});
         client.first->SendMessage(message);
     }
+}
+
+void Room::GenerateWord()
+{
+    // Randomize word using the m_words array
+    m_word = m_words[rand() % m_words.size()];
 }

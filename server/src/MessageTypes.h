@@ -15,7 +15,6 @@ namespace MessageTypes
         DrawCommand,
         CanvasPacket,
         GuessPacket,
-        NewRound,
         CorrectGuess,
         SetDrawer
     };
@@ -57,5 +56,6 @@ namespace MessageTypes
     struct DrawerPacket
     {
         uint8_t isDrawer;
+        std::string word;
     };
 };

@@ -19,12 +19,15 @@ public:
     void RemoveClient(std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>>::iterator it);
     void Broadcast(const Message &message);
     void BroadcastExcept(const Message &message, unsigned int id);
+    
+    // Canvas methods    
     void AddDrawCommand(MessageTypes::DrawCommand drawCommand);
     void AddDrawCommands(std::vector<MessageTypes::DrawCommand> drawCommands);
+    void ClearCanvas();
     void SendCanvas();
     void SendCanvas(unsigned int id);
+
     bool CheckWord(const std::string &word, unsigned int id);
-    void ClearDrawCommands();
     void NewRound();
 
     // Getters
@@ -33,6 +36,11 @@ public:
     unsigned int CurrentDrawer() const
     {
         return m_currentDrawer;
+    }
+
+    const std::string &Word() const
+    {
+        return m_word;
     }
 
     // Iterators
@@ -68,5 +76,10 @@ private:
     std::vector<MessageTypes::DrawCommand> m_drawCommands;
     std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>> m_clients;
 
-    void PromoteNextDrawer();
+    void PromoteDrawer(unsigned int id);
+    void GenerateWord();
+
+    std::vector<std::string> m_words = {
+        "car", "tree", "house", "sun", "book", "dog", "cat", "chair", "ball", "boat", "clock", "hat", "cup", "key", "chair", "flower", "apple", "moon", "star", "bird"
+    };
 };

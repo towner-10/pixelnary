@@ -166,7 +166,14 @@ void Server::HandleMessages()
                 response.Head().client_id = message.Head().client_id;
                 response.Head().room = message.Head().room;
                 response.Head().payload_size = sizeof(MessageTypes::DrawerPacket);
-                response.PushDrawerPacket({m_rooms[message.Head().room].CurrentDrawer() == message.Head().client_id});
+
+                bool isDrawer = m_rooms[message.Head().room].CurrentDrawer() == message.Head().client_id;
+                
+                std::string word = "";
+                if (isDrawer)
+                    word = m_rooms[message.Head().room].Word();
+
+                response.PushDrawerPacket({m_rooms[message.Head().room].CurrentDrawer() == message.Head().client_id, word});
                 SendMessage(*m_rooms[message.Head().room].GetClient(message.Head().client_id), response);
                 m_rooms[message.Head().room].SendCanvas(message.Head().client_id);
 
@@ -245,7 +252,7 @@ void Server::HandleMessages()
                 ERROR("[Server] Room " + std::to_string(message.Head().room) + " does not exist");
                 break;
             }
-            m_rooms[message.Head().room].ClearDrawCommands();
+            m_rooms[message.Head().room].ClearCanvas();
             m_rooms[message.Head().room].SendCanvas();
             break;
         }

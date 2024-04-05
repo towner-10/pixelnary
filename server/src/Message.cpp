@@ -30,7 +30,9 @@ void Message::PushDrawerPacket(const MessageTypes::DrawerPacket& drawerPacket)
         throw MessageTypeMismatchExcpetion("attempt to push a message type that does not match the type of the message");
     }
 
-    Push(&drawerPacket.isDrawer, sizeof(uint8_t));
+    const char* word = drawerPacket.word.c_str();
+    Push(&drawerPacket.isDrawer, sizeof(MessageTypes::DrawerPacket::isDrawer));
+    Push(word, strlen(word));
 }
 
 void Message::PushDrawCommand(const MessageTypes::DrawCommand& drawCommand)
