@@ -2,6 +2,7 @@
 
 import tkinter as tk
 import screen_manager as sm
+from collections.abc import Callable
 from packet_manager import *
 from paint import *
 import sys
@@ -12,6 +13,8 @@ class ScribbleGame:
         self.socket: ScribbleSocket = None
         self.root: tk.Tk = sm.screen_manager.get_root()
         self.drawer = False
+        self.is_guessing = True
+        self.on_guess_packet: Callable[[Packet], None] = None
 
     def on_packet_received(self, packet: Packet):
         print(f"Received packet: {packet.packet_type}")
@@ -20,12 +23,18 @@ class ScribbleGame:
             if self.socket is not None and self.socket.client_id is not None:
                 print(f"Received room ID: {packet.room_id}")
                 self.socket.room_id = packet.room_id
-                self.socket.send_packet(Packet(PacketType.JOIN_ROOM, self.socket.client_id, packet.room_id, b""))
+                self.socket.send_packet(
+                    Packet(PacketType.JOIN_ROOM, self.socket.client_id, packet.room_id, b""))
         elif packet.packet_type == PacketType.SET_DRAWER:
             self.drawer = int.from_bytes(packet.data) == 1
+            if not self.drawer:
+                self.is_guessing = True
             print(self.drawer)
             self.render_room()
-                
+        elif packet.packet_type == PacketType.GUESS_PACKET or packet.packet_type == PacketType.CORRECT_GUESS:
+            print("Received guess packet")
+            if self.on_guess_packet is not None:
+                self.on_guess_packet(packet)
 
     def render_main_menu(self):
         sm.ScreenManager.get_instance().clear_screen()
@@ -36,7 +45,7 @@ class ScribbleGame:
 
         # Game title
         title_label = tk.Label(self.root, text="Pixelnary",
-                            font=heading, bg="#2133AB", fg="white")
+                               font=heading, bg="#2133AB", fg="white")
         title_label.place(x=600, y=260, anchor="center")
 
         # Subtitle
@@ -69,7 +78,7 @@ class ScribbleGame:
 
         # Create button
         create_button = tk.Button(self.root, text="Create a new room",
-                                font=text_bold, bg="#288DD9", fg="white", width=25, height=2, command=lambda: self.handle_create(ip_entry.get()))
+                                  font=text_bold, bg="#288DD9", fg="white", width=25, height=2, command=lambda: self.handle_create(ip_entry.get()))
         create_button.place(x=600, y=575, anchor="center")
 
     def render_room(self):
@@ -82,12 +91,12 @@ class ScribbleGame:
 
         # Leave button
         leave_button = tk.Button(self.root, text="Leave",
-                                font=text_bold, bg="#288DD9", fg="white", width=6, height=1, command=lambda: self.handle_leave())
+                                 font=text_bold, bg="#288DD9", fg="white", width=6, height=1, command=lambda: self.handle_leave())
         leave_button.place(x=50, y=62)
 
         # Room ID title
         room_label = tk.Label(self.root, text="Room",
-                            font=subheading_bold, bg="#2133AB", fg="white")
+                              font=subheading_bold, bg="#2133AB", fg="white")
         room_label.place(x=165, y=50)
         id_label = tk.Label(self.root, text=self.socket.room_id,
                             font=subheading, bg="#2133AB", fg="white")
@@ -117,90 +126,145 @@ class ScribbleGame:
         user = "Client " + str(self.socket.client_id)
         msg_list = []  # TODO: Replace with real message list
         # Replace with not drawer (for now still enabled to show chat box)
-        is_guessing = True
         components = []
 
         # Guess button
         guess_button = tk.Button(self.root, text="Guess",
-                                font=text_bold, bg="#288DD9", fg="white", width=6, height=1,
-                                command=lambda: handle_send(user, msg_entry, msg_list, is_guessing, components, "test"))
+                                 font=text_bold, bg="#288DD9", fg="white", width=6, height=1,
+                                 command=lambda: handle_send())
         guess_button.place(x=1109, y=729, anchor="center")
 
-        # Display guess in chat box
-        def handle_send(user, msg_entry, msg_list, is_guessing, components, word):
-            # Prevent guess if user already got the right word or guess is empty
-            if is_guessing == False or msg_entry.get() == "":
-                return
-
-            # Destroy current guess message components
-            for component in components:
-                component.destroy()
-
-            # Add new guess message to msg_list
-            msg_list.append({
-                "user": user,
-                "msg": msg_entry.get()
-            })
-
-            # Limit msg_list to 7 most recent messages
-            if len(msg_list) > 7:
-                msg_list.pop(0)
-
-            # Clear message input
-            msg_entry.delete(0, "end")
-
+        def render_chat_box():
             # Render new guess message components in order of least-most recent
             for i in range(len(msg_list)):
-                msg_box = tk.Canvas(self.root, width=380, height=60, bg="#16208F")
+                msg_box = tk.Canvas(self.root, width=380,
+                                    height=60, bg="#16208F")
                 msg_box.place(x=760, y=210 + 73 * i)
                 components.append(msg_box)
 
-                if (msg_list[i]["msg"] == word):
-                    user_label = tk.Label(
-                        self.root, text=f"{msg_list[i]['user']} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
-                    user_label.place(x=770, y=220 + 73 * i)
-                    components.append(user_label)
+                if (msg_list[i]["correct"] == True):
+                    if msg_list[i]["user"] == user:
+                        user_label = tk.Label(
+                            self.root, text="You guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                        user_label.place(x=770, y=220 + 73 * i)
+                        components.append(user_label)
 
-                    msg_label = tk.Label(
-                        self.root, text="Congratulations!", font=text, bg="#16208F", fg="#2EBF53")
-                    msg_label.place(x=770, y=240 + 73 * i)
-                    components.append(msg_label)
+                        msg_label = tk.Label(
+                            self.root, text="Congratulations!", font=text, bg="#16208F", fg="#2EBF53")
+                        msg_label.place(x=770, y=240 + 73 * i)
+                        components.append(msg_label)
+                    else:
+                        user_label = tk.Label(
+                            self.root, text=f"{msg_list[i]['user']} guessed the right word!", font=text_bold, bg="#16208F", fg="#2EBF53")
+                        user_label.place(x=770, y=220 + 73 * i)
+                        components.append(user_label)
 
-                    is_guessing = False
+                        msg_label = tk.Label(
+                            self.root, text="Congratulations!", font=text, bg="#16208F", fg="#2EBF53")
+                        msg_label.place(x=770, y=240 + 73 * i)
+                        components.append(msg_label)
                 else:
-                    user_label = tk.Label(
-                        self.root, text=f"{msg_list[i]['user']} guessed:", font=text, bg="#16208F", fg="white")
-                    user_label.place(x=770, y=220 + 73 * i)
-                    components.append(user_label)
+                    if msg_list[i]["user"] == user:
+                        user_label = tk.Label(
+                            self.root, text="You guessed:", font=text, bg="#16208F", fg="white")
+                        user_label.place(x=770, y=220 + 73 * i)
+                        components.append(user_label)
 
-                    msg_label = tk.Label(
-                        self.root, text=msg_list[i]["msg"], font=text_bold, bg="#16208F", fg="white")
-                    msg_label.place(x=770, y=240 + 73 * i)
-                    components.append(msg_label)
+                        msg_label = tk.Label(
+                            self.root, text=msg_list[i]["msg"], font=text_bold, bg="#16208F", fg="white")
+                        msg_label.place(x=770, y=240 + 73 * i)
+                        components.append(msg_label)
+                    else:
+                        user_label = tk.Label(
+                            self.root, text=f"{msg_list[i]['user']} guessed:", font=text, bg="#16208F", fg="white")
+                        user_label.place(x=770, y=220 + 73 * i)
+                        components.append(user_label)
+
+                        msg_label = tk.Label(
+                            self.root, text=msg_list[i]["msg"], font=text_bold, bg="#16208F", fg="white")
+                        msg_label.place(x=770, y=240 + 73 * i)
+                        components.append(msg_label)
+
+        # On guess packet received
+        def handle_receive(packet: Packet):
+            if packet.packet_type == PacketType.GUESS_PACKET:
+                # Destroy current guess message components
+                for component in components:
+                    component.destroy()
+
+                msg_list.append({
+                    "user": f"Client {packet.client_id}",
+                    "msg": packet.data.decode(),
+                    "correct": False
+                })
+
+                # Limit msg_list to 7 most recent messages
+                if len(msg_list) > 7:
+                    msg_list.pop(0)
+
+                # Render new guess message components in order of least-most recent
+                render_chat_box()
+            elif packet.packet_type == PacketType.CORRECT_GUESS:
+                # Destroy current guess message components
+                for component in components:
+                    component.destroy()
+
+                msg_list.append({
+                    "user": f"Client {packet.client_id}",
+                    "msg": None,
+                    "correct": True
+                })
+
+                if packet.client_id == self.socket.client_id:
+                    self.is_guessing = False
+
+                # Limit msg_list to 7 most recent messages
+                if len(msg_list) > 7:
+                    msg_list.pop(0)
+
+                # Render new guess message components in order of least-most recent
+                render_chat_box()
+
+        self.on_guess_packet = handle_receive
+
+        # Display guess in chat box
+        def handle_send():
+            # Prevent guess if user already got the right word or guess is empty
+            if self.is_guessing == False or msg_entry.get() == "":
+                return
+
+            # Send guess packet
+            self.socket.send_packet(Packet(PacketType.GUESS_PACKET,
+                                           self.socket.client_id, self.socket.room_id, msg_entry.get().encode()))
+            
+            # Clear message entry
+            msg_entry.delete(0, tk.END)
 
     def handle_join(self, ip: str, room_id: str):
         address = ip.split(":")[0]
         port = int(ip.split(":")[1])
 
         if self.socket is None:
-            self.socket = ScribbleSocket(address, port, self.on_packet_received)
+            self.socket = ScribbleSocket(
+                address, port, self.on_packet_received)
 
         # Send join packet
         self.socket.send_packet(Packet(PacketType.JOIN_ROOM,
-                        self.socket.client_id, int(room_id), b""))
-        
+                                       self.socket.client_id, int(room_id), b""))
+
         self.socket.room_id = int(room_id)
-        
+
     def handle_create(self, ip: str):
         address = ip.split(":")[0]
         port = int(ip.split(":")[1])
 
         if self.socket is None:
-            self.socket = ScribbleSocket(address, port, self.on_packet_received)
+            self.socket = ScribbleSocket(
+                address, port, self.on_packet_received)
 
         # Send create packet
         self.socket.send_packet(Packet(PacketType.CREATE_ROOM,
-                        self.socket.client_id, 0, b""))
+                                       self.socket.client_id, 0, b""))
 
     def handle_leave(self):
         self.close_socket()
@@ -226,9 +290,11 @@ class ScribbleGame:
         # Start the main loop
         self.root.mainloop()
 
+
 def main():
     game = ScribbleGame()
     game.start()
+
 
 if __name__ == "__main__":
     main()

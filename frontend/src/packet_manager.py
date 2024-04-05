@@ -16,8 +16,7 @@ class PacketType:
     GUESS_PACKET = 7
     NEW_ROUND = 8
     CORRECT_GUESS = 9
-    INCORRECT_GUESS = 10
-    SET_DRAWER = 11
+    SET_DRAWER = 10
 
 
 class Packet:
@@ -106,7 +105,7 @@ class ReaderThread(threading.Thread):
                 if packet:
                     temp = Packet.parse_packet(packet)
 
-                    if temp.packet_type == PacketType.SET_DRAWER or temp.packet_type == PacketType.CANVAS_PACKET:
+                    if temp.packet_type == PacketType.SET_DRAWER or temp.packet_type == PacketType.CANVAS_PACKET or temp.packet_type == PacketType.GUESS_PACKET:
                         self.scribble_socket.socket.setblocking(self.running)
                         self.fetching_data = True
                         packet = self.scribble_socket.socket.recv(
