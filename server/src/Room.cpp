@@ -150,11 +150,20 @@ bool Room::CheckWord(const std::string &word, unsigned int id)
 
             if (correct)
             {
-                client.first->SendMessage(Message(MessageTypes::PacketType::CorrectGuess));
+                Message message(MessageTypes::PacketType::CorrectGuess);
+                message.Head().client_id = id;
+                message.Head().room = 0;
+                message.Head().payload_size = 0;
+                Broadcast(message);
             }
             else
             {
-                client.first->SendMessage(Message(MessageTypes::PacketType::IncorrectGuess));
+                Message message(MessageTypes::PacketType::GuessPacket);
+                message.Head().client_id = id;
+                message.Head().room = 0;
+                message.Head().payload_size = sizeof(MessageTypes::GuessPacket);
+                message.PushGuessPacket({word});
+                Broadcast(message);
             }
 
             bool allCorrect = false;

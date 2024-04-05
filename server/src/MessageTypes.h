@@ -17,7 +17,6 @@ namespace MessageTypes
         GuessPacket,
         NewRound,
         CorrectGuess,
-        IncorrectGuess,
         SetDrawer
     };
 
