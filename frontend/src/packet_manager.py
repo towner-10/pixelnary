@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from time import sleep
-from struct import *
+from struct import unpack, pack, error
 import threading
 import socket
 
@@ -19,12 +19,36 @@ class PacketType:
     SET_DRAWER = 10
 
 
+class CanvasPacket:
+    def __init__(self, old_x, old_y, new_x, new_y, color):
+        self.old_x = old_x
+        self.old_y = old_y
+        self.new_x = new_x
+        self.new_y = new_y
+        self.color = color
+
+    def create_packet(self):
+        return pack("HHHHH", self.old_x, self.old_y, self.new_x, self.new_y, self.color)
+    
+    def parse_packet(packet: bytes):
+        try:
+            return CanvasPacket(unpack("H", packet[0:2])[0], unpack("H", packet[2:4])[0], unpack("H", packet[4:6])[0], unpack("H", packet[6:8])[0], unpack("H", packet[8:10])[0])
+        except Exception as e:
+            print(packet)
+            raise e
+
+    def __str__(self) -> str:
+        return f"CanvasPacket: {self.old_x}, {self.old_y}, {self.new_x}, {self.new_y}, {self.color}"
+
+
 class Packet:
-    def __init__(self, packet_type, client_id, room_id, data):
+    def __init__(self, packet_type, client_id, room_id, data, data_length=0):
         self.packet_type = packet_type
         self.client_id = client_id
         self.room_id = room_id
         self.data_length = len(data)
+        if data_length != 0:
+            self.data_length = data_length
         self.data = data
 
     def create_packet(self):
@@ -40,10 +64,14 @@ class Packet:
     def parse_packet(packet):
         new_packet = Packet(0, 0, 0, b"")
 
-        new_packet.room_id = unpack("H", packet[0:2])[0]
-        new_packet.client_id = unpack("B", packet[2:3])[0]
-        new_packet.packet_type = unpack("B", packet[3:4])[0]
-        new_packet.data_length = unpack("I", packet[4:8])[0]
+        try:
+            new_packet.room_id = unpack("H", packet[0:2])[0]
+            new_packet.client_id = unpack("B", packet[2:3])[0]
+            new_packet.packet_type = unpack("B", packet[3:4])[0]
+            new_packet.data_length = unpack("I", packet[4:8])[0]
+        except error as e:
+            print(packet)
+            raise e
 
         return new_packet
 
@@ -59,12 +87,13 @@ class ScribbleSocket:
         self.socket.connect((address, port))
         self.socket.settimeout(5)
 
-        packet = self.socket.recv(64)
+        # Read the header packet
+        packet = self.socket.recv(8)
 
         print(Packet.parse_packet(packet))
 
         while Packet.parse_packet(packet).packet_type != PacketType.SET_CLIENT_ID:
-            packet = self.socket.recv(64)
+            packet = self.socket.recv(8)
 
         self.client_id = Packet.parse_packet(packet).client_id
         print(f"Received client ID: {self.client_id}")
@@ -95,24 +124,23 @@ class ReaderThread(threading.Thread):
         self.fetching_data = False
 
     def run(self):
-        self.scribble_socket.socket.settimeout(None)
-        self.scribble_socket.socket.setblocking(False)
+        self.scribble_socket.socket.settimeout(0)
+        self.scribble_socket.socket.setblocking(0)
 
         while self.running:
             try:
-                packet = self.scribble_socket.socket.recv(64)
+                packet = self.scribble_socket.socket.recv(8)
 
                 if packet:
                     temp = Packet.parse_packet(packet)
-
-                    if temp.packet_type == PacketType.SET_DRAWER or temp.packet_type == PacketType.CANVAS_PACKET or temp.packet_type == PacketType.GUESS_PACKET:
+                    
+                    if temp.packet_type == PacketType.SET_DRAWER or temp.packet_type == PacketType.CANVAS_PACKET or temp.packet_type == PacketType.DRAW_COMMAND or temp.packet_type == PacketType.GUESS_PACKET:
                         self.scribble_socket.socket.setblocking(self.running)
                         self.fetching_data = True
-                        packet = self.scribble_socket.socket.recv(
-                            temp.data_length)
+                        packet = self.scribble_socket.socket.recv(temp.data_length)
+                        temp.data = packet
                         self.fetching_data = False
-                        self.scribble_socket.socket.setblocking(False)
-                        temp.data += packet
+                        self.scribble_socket.socket.setblocking(0)
 
                     if self.on_packet_received:
                         self.on_packet_received(temp)

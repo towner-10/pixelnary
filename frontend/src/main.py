@@ -15,10 +15,10 @@ class ScribbleGame:
         self.drawer = False
         self.is_guessing = True
         self.on_guess_packet: Callable[[Packet], None] = None
+        self.on_draw_packet: Callable[[CanvasPacket], None] = None
+        self.on_canvas_packet: Callable[[List[CanvasPacket]], None] = None
 
     def on_packet_received(self, packet: Packet):
-        print(f"Received packet: {packet.packet_type}")
-
         if packet.packet_type == PacketType.SET_ROOM_ID:
             if self.socket is not None and self.socket.client_id is not None:
                 print(f"Received room ID: {packet.room_id}")
@@ -29,12 +29,26 @@ class ScribbleGame:
             self.drawer = int.from_bytes(packet.data) == 1
             if not self.drawer:
                 self.is_guessing = True
-            print(self.drawer)
+            print("Is drawer: " + str(self.drawer))
             self.render_room()
         elif packet.packet_type == PacketType.GUESS_PACKET or packet.packet_type == PacketType.CORRECT_GUESS:
-            print("Received guess packet")
             if self.on_guess_packet is not None:
                 self.on_guess_packet(packet)
+        elif packet.packet_type == PacketType.DRAW_COMMAND:
+            if not self.drawer and self.on_draw_packet is not None:
+                self.on_draw_packet(CanvasPacket.parse_packet(packet.data))
+        elif packet.packet_type == PacketType.CANVAS_PACKET:
+            if self.on_canvas_packet is not None:
+                # Parse the canvas packet
+                canvas_packets = []
+
+                # 16 bits for old x, 16 bits for old y, 16 bits for new x, 16 bits for new y, 16 bits for color
+                for i in range(0, len(packet.data), 10):
+                    canvas_packet = CanvasPacket.parse_packet(
+                        packet.data[i:i+10])
+                    canvas_packets.append(canvas_packet)
+
+                self.on_canvas_packet(canvas_packets)
 
     def render_main_menu(self):
         sm.ScreenManager.get_instance().clear_screen()
@@ -102,8 +116,27 @@ class ScribbleGame:
                             font=subheading, bg="#2133AB", fg="white")
         id_label.place(x=295, y=50)
 
-        canvas = Paint(self.root)
-        canvas.setup(self.socket.room_id, self.socket.client_id, self.drawer)
+        def handle_send_drawing(canvas_packet: CanvasPacket):
+            if self.drawer:
+                self.socket.send_packet(Packet(PacketType.DRAW_COMMAND, self.socket.client_id,
+                                               self.socket.room_id, canvas_packet.create_packet()))
+
+        def handle_clear_canvas():
+            if self.drawer:
+                self.socket.send_packet(Packet(PacketType.CANVAS_PACKET,
+                                               self.socket.client_id, self.socket.room_id, b""))
+
+        canvas = Paint(self.root, handle_send_drawing, handle_clear_canvas)
+        canvas.setup(self.drawer)
+
+        def on_canvas_packet(canvas_packets: List[CanvasPacket]):
+            canvas.update_canvas(canvas_packets)
+
+        def on_draw_packet(canvas_packet: CanvasPacket):
+            canvas.paint_packet(canvas_packet)
+
+        self.on_canvas_packet = on_canvas_packet
+        self.on_draw_packet = on_draw_packet
 
         # Action label
         if (self.drawer):
@@ -236,7 +269,7 @@ class ScribbleGame:
             # Send guess packet
             self.socket.send_packet(Packet(PacketType.GUESS_PACKET,
                                            self.socket.client_id, self.socket.room_id, msg_entry.get().encode()))
-            
+
             # Clear message entry
             msg_entry.delete(0, tk.END)
 
