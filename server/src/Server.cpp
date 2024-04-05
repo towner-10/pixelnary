@@ -121,7 +121,6 @@ void Server::OnDisconnect(ClientConnection &client)
 
     for (int i = 0; i < m_rooms.size(); i++)
     {
-        LOG_DEBUG("[Server] Checking room " + std::to_string(i));
         Room &room = m_rooms[i];
         auto it = room.begin();
         while (it != room.end())
@@ -131,6 +130,10 @@ void Server::OnDisconnect(ClientConnection &client)
                 INFO("[Server] Connection " + std::to_string(client.Id()) + " was in room " + std::to_string(i));
                 room.RemoveClient(it);
                 return;
+            }
+            else
+            {
+                it++;
             }
         }
     }
