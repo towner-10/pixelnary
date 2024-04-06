@@ -312,8 +312,7 @@ void Room::PromoteDrawer(unsigned int id)
         message.PushDrawerPacket({isDrawer, word});
         client.first->SendMessage(message);
 
-        if (isDrawer)
-            SendCanvas(client.first->Id());
+        SendCanvas();
     }
 }
 
