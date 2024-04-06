@@ -35,6 +35,7 @@ class ScribbleGame:
                 self.word = None
             else:
                 self.word = packet.data[1:].decode()
+                self.is_guessing = False
             print("Is drawer: " + str(self.drawer))
             self.render_room()
         elif packet.packet_type == PacketType.GUESS_PACKET or packet.packet_type == PacketType.CORRECT_GUESS:
