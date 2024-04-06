@@ -59,18 +59,43 @@ void Room::RemoveClient(ClientConnection &client)
 
 void Room::RemoveClient(std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>>::iterator it)
 {
+    unsigned int id = it->first->Id();
+    m_clients.erase(it);
+
     // Promote another client to drawer if the drawer left
-    if (it->first->Id() == m_currentDrawer)
+    if (id == m_currentDrawer)
     {
-        m_clients.erase(it);
         if (!m_clients.empty())
             PromoteDrawer(m_clients.front().first->Id());
         else
             m_currentDrawer = 0;
     }
-    else
+
+    INFO("[Room] Removed client " + std::to_string(id) + " from room");
+
+    // Determine if game is over
+    if (!m_clients.empty())
     {
-        m_clients.erase(it);
+        bool allCorrect = true;
+        for (auto &client : m_clients)
+        {
+            if (client.first->Id() == m_currentDrawer)
+            {
+                continue;
+            }
+
+            if (!client.second)
+            {
+                allCorrect = false;
+                break;
+            }
+        }
+
+        if (allCorrect)
+        {
+            INFO("[Room] All remaining clients guessed the word correctly");
+            NewRound();
+        }
     }
 }
 
@@ -250,7 +275,7 @@ void Room::NewRound()
         return;
     }
 
-    INFO("[Room] No clients in room to promote drawer to");
+    INFO("[Room] No clients in room to promote to drawer");
 }
 
 void Room::PromoteDrawer(unsigned int id)

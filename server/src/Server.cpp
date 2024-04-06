@@ -127,7 +127,6 @@ void Server::OnDisconnect(ClientConnection &client)
         {
             if (it->first.get() == &client)
             {
-                INFO("[Server] Connection " + std::to_string(client.Id()) + " was in room " + std::to_string(i));
                 room.RemoveClient(it);
                 return;
             }
