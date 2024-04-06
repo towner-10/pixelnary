@@ -24,13 +24,13 @@ std::string Int16HexString(uint16_t x)
 
 std::function<void(std::string, LogLevel)> Logger::StandardErrorOutput = [](std::string message, LogLevel)
 {
-    std::cerr << message << '\n';
+    std::cerr << message << std::endl;
 };
 
 
 std::function<void(std::string, LogLevel)> Logger::StandardOutput = [](std::string message, LogLevel)
 {
-    std::cout << message << '\n';
+    std::cout << message << std::endl;
 };
 
 void Logger::LogDebug(const std::string& message, const char* file, int line)

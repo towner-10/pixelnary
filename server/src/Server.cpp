@@ -14,8 +14,7 @@ void Server::Start()
 {
     AsyncWaitForConnection();
 
-    m_serverThread = std::thread([this]()
-                                 { m_context.run(); });
+    m_serverThread = std::thread([this]() { m_context.run(); });
     INFO("[Server] server started on port " + std::to_string(m_port));
 }
 
