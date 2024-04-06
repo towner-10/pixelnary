@@ -250,7 +250,7 @@ void Room::NewRound()
         return;
     }
 
-    INFO("[Room] No clients in room to promote drawer to");
+    INFO("[Room] No clients in room to promote to drawer");
 }
 
 void Room::PromoteDrawer(unsigned int id)
