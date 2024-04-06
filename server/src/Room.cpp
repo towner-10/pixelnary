@@ -45,13 +45,15 @@ void Room::MoveClient(ClientConnection &client, Room &room)
 
 void Room::RemoveClient(ClientConnection &client)
 {
-    for (auto it = m_clients.begin(); it != m_clients.end();)
+    auto it = m_clients.begin();
+    while (it != m_clients.end())
     {
         if (it->first.get() == &client)
         {
             RemoveClient(it);
             return;
         }
+        it++;
     }
 }
 
@@ -64,7 +66,7 @@ void Room::RemoveClient(std::vector<std::pair<std::unique_ptr<ClientConnection>,
         if (!m_clients.empty())
             PromoteDrawer(m_clients.front().first->Id());
         else
-            PromoteDrawer(0);
+            m_currentDrawer = 0;
     }
     else
     {
@@ -284,6 +286,9 @@ void Room::PromoteDrawer(unsigned int id)
 
         message.PushDrawerPacket({isDrawer, word});
         client.first->SendMessage(message);
+
+        if (isDrawer)
+            SendCanvas(client.first->Id());
     }
 }
 
