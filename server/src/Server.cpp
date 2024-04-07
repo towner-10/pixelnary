@@ -107,14 +107,18 @@ void Server::OnDisconnect(ClientConnection &client)
 {
     INFO("[Server] Connection " + std::to_string(client.Id()) + " left the game");
 
-    for (auto it = m_waitingRoom.begin(); it != m_waitingRoom.end();)
+    auto it = m_waitingRoom.begin();
+    while (it != m_waitingRoom.end())
     {
-        LOG_DEBUG("[Server] Checking waiting room");
         if (it->first.get() == &client)
         {
             INFO("[Server] Connection " + std::to_string(client.Id()) + " was in the waiting room");
             m_waitingRoom.RemoveClient(it);
             return;
+        }
+        else
+        {
+            it++;
         }
     }
 
