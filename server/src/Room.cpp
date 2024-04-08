@@ -13,7 +13,7 @@ Room::Room()
     NewRound();
 }
 
-void Room::AddClient(std::unique_ptr<ClientConnection> client)
+void Room::AddClient(std::shared_ptr<ClientConnection> client)
 {
     // Set as drawer if no clients are in the room
     bool drawer = m_clients.empty();
@@ -57,7 +57,7 @@ void Room::RemoveClient(ClientConnection &client)
     }
 }
 
-void Room::RemoveClient(std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>>::iterator it)
+void Room::RemoveClient(std::vector<std::pair<std::shared_ptr<ClientConnection>, bool>>::iterator it)
 {
     unsigned int id = it->first->Id();
     m_clients.erase(it);

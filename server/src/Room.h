@@ -13,10 +13,10 @@ public:
     Room();
 
     // Methods
-    void AddClient(std::unique_ptr<ClientConnection> client);
+    void AddClient(std::shared_ptr<ClientConnection> client);
     void MoveClient(ClientConnection &client, Room &room);
     void RemoveClient(ClientConnection &client);
-    void RemoveClient(std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>>::iterator it);
+    void RemoveClient(std::vector<std::pair<std::shared_ptr<ClientConnection>, bool>>::iterator it);
     void Broadcast(const Message &message);
     void BroadcastExcept(const Message &message, unsigned int id);
     
@@ -44,12 +44,12 @@ public:
     }
 
     // Iterators
-    std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>>::iterator begin()
+    std::vector<std::pair<std::shared_ptr<ClientConnection>, bool>>::iterator begin()
     {
         return m_clients.begin();
     }
 
-    std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>>::iterator end()
+    std::vector<std::pair<std::shared_ptr<ClientConnection>, bool>>::iterator end()
     {
         return m_clients.end();
     }
@@ -74,7 +74,7 @@ private:
     unsigned int m_currentDrawer = 0;
     std::string m_word;
     std::vector<MessageTypes::DrawCommand> m_drawCommands;
-    std::vector<std::pair<std::unique_ptr<ClientConnection>, bool>> m_clients;
+    std::vector<std::pair<std::shared_ptr<ClientConnection>, bool>> m_clients;
 
     void PromoteDrawer(unsigned int id);
     void GenerateWord();
