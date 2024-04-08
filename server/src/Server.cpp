@@ -59,8 +59,7 @@ bool Server::MoveFromWaitingRoomToRoom(ClientConnection &client, unsigned int ro
 
 void Server::AsyncWaitForConnection()
 {
-    m_connectionAcceptor.async_accept([this](asio::error_code error, asio::ip::tcp::socket socket)
-                                      {
+    m_connectionAcceptor.async_accept([this](asio::error_code error, asio::ip::tcp::socket socket) {
         if (error)
         {
             ERROR_FL("[Server] async_accept failed with error: " + error.message());
@@ -68,16 +67,23 @@ void Server::AsyncWaitForConnection()
             return;
         }
 
-        m_waitingRoom.AddClient(std::make_unique<ClientConnection>(
+        LOG_DEBUG("[Server] New connection from " + socket.remote_endpoint().address().to_string());
+
+        const auto connection = std::make_shared<ClientConnection>(
             m_context, std::move(socket), m_numConnections++, m_incomingMessageQueue
-        ));
+        );
+
+        m_waitingRoom.AddClient(connection);
+
+        connection->Start();
 
         OnConnect(*m_waitingRoom.GetLastClient());
 
         // BTW... this is not recursion. This function is async which means
         // it returns virtually instantly. So by doing this, we are not growing
         // the stack frame but rather
-        AsyncWaitForConnection(); });
+        AsyncWaitForConnection();
+    });
 }
 
 void Server::SendMessage(ClientConnection &client, const Message &message)

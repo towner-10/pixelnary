@@ -1,5 +1,6 @@
 #pragma once
 #include <deque>
+#include <memory>
 #define ASIO_STANDALONE
 #include <asio.hpp>
 #include <asio/ts/buffer.hpp>
@@ -7,7 +8,7 @@
 
 #include "Message.h"
 
-class ClientConnection
+class ClientConnection : public std::enable_shared_from_this<ClientConnection>
 {
 public:
     ClientConnection(asio::io_context& context, asio::ip::tcp::socket socket, unsigned int id, std::deque<Message>& msgInQueue);
@@ -15,6 +16,7 @@ public:
 public:
     bool IsConnected() const;
     void SendMessage(const Message& message);
+    void Start();
     void Disconnect();
 
 public:
